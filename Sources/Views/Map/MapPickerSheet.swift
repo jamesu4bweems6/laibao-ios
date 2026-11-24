@@ -384,7 +384,7 @@ struct MapPickerSheet: View {
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: candidate.isLocalPOI ? "mappin.circle.fill" : "magnifyingglass.circle.fill")
-                                        .foregroundStyle(candidate.isLocalPOI ? .blue : .secondary)
+                                        .foregroundStyle(candidate.isLocalPOI ? Color.blue : Color.secondary)
                                     VStack(alignment: .leading, spacing: 2) {
                                         HStack(spacing: 6) {
                                             Text(candidate.title)

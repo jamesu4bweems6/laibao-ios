@@ -257,7 +257,7 @@ struct AccountsView: View {
                                 systemImage: account.hasToken ? "lock.shield.fill" : "exclamationmark.triangle"
                             )
                             .font(.caption.monospaced())
-                            .foregroundStyle(account.hasToken ? .secondary : .orange)
+                            .foregroundStyle(account.hasToken ? Color.secondary : Color.orange)
                             Spacer()
                             if !account.source.isEmpty {
                                 Text(account.source.uppercased())

@@ -190,7 +190,7 @@ struct AdminConsoleView: View {
                             ForEach(entry.plans) { plan in
                                 HStack(alignment: .top, spacing: 8) {
                                     Image(systemName: plan.enabled ? "bell.badge.fill" : "bell.slash")
-                                        .foregroundStyle(plan.enabled ? .green : .secondary)
+                                        .foregroundStyle(plan.enabled ? Color.green : Color.secondary)
                                         .font(.caption)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("\(plan.name) · 表单 \(plan.formID)")

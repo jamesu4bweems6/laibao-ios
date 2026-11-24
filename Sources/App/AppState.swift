@@ -298,7 +298,7 @@ final class AppState {
                 var updatedPlan = plan
                 updatedPlan.lastTriggeredAt = Date()
                 updatedPlan.lastRunStatus = statusText
-                try? workspaceStore.upsertReminder(updatedPlan, for: user.id)
+                _ = try? workspaceStore.upsertReminder(updatedPlan, for: user.id)
                 refreshWorkspace()
                 throw error
             }
@@ -320,7 +320,7 @@ final class AppState {
             var updatedPlan = plan
             updatedPlan.lastTriggeredAt = Date()
             updatedPlan.lastRunStatus = statusText
-            try? workspaceStore.upsertReminder(updatedPlan, for: user.id)
+            _ = try? workspaceStore.upsertReminder(updatedPlan, for: user.id)
         }
         refreshWorkspace()
         return (result: submitResult, payload: built.payload, warnings: built.warnings)
