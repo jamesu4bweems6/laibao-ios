@@ -2,8 +2,8 @@
 
 纯 SwiftUI 原生开发的「来宝接龙」iOS 客户端，面向 **iOS 26 / iOS 27 原生 Liquid Glass（液态玻璃）** 设计语言打造。
 
-- **零第三方依赖**：仅使用 Apple 原生框架（`SwiftUI`、`MapKit`、`CoreLocation`、`Security`、`CryptoKit`、`CommonCrypto`、`LocalAuthentication`、`CoreImage`、`UserNotifications`、`BackgroundTasks`、`Foundation`）。
-- **纯本地独立运行**：无需部署外部后端服务器，App 直接通过 HTTPS 与来宝接龙官方接口通信，账号凭据、用户配置、常用点位与提醒计划均保存在本机沙盒与系统 Keychain。
+- **零第三方依赖**：仅使用 Apple 原生框架（`SwiftUI`、`MapKit`、`CoreLocation`、`Security`、`CoreImage`、`UserNotifications`、`BackgroundTasks`、`Foundation`）。
+- **纯本地单用户直达**：无需部署外部后端服务器，也无需繁琐的本地管理员密码门禁，打开即直达 5 标签 Liquid Glass 工作区；App 直接通过 HTTPS 与来宝接龙官方接口通信，配置、常用点位与提醒计划保存在本机沙盒，会话令牌受 iOS Keychain 加密保护。
 - **开箱即打包未签名 IPA**：内置 deterministic `LaiBao.xcodeproj`、XcodeGen `project.yml`、一键未签名打包脚本与 GitHub Actions 自动构建工作流。
 
 ---
@@ -21,11 +21,10 @@
 
 ## 核心功能一览
 
-1. **本地多用户密码门禁与安全存储**
-   - 内置本地用户体系（支持 `admin` / `user` 角色与管理员控制台），密码采用 **PBKDF2-HMAC-SHA256**（`>= 210,000` 次迭代 + 常量时间比对）、登录防爆破限速与最后一名管理员锁定保护。
-   - 支持 **Face ID / Touch ID** 快速解锁门禁。
-   - 来宝接龙 Bearer Token 按 `(localUserID, accountName)` 严格隔离并存储于系统 **Keychain**，不落盘明文 JSON。
-   - 网络层强制 HTTPS 校验并拦截协议降级。
+1. **开箱直达与 iOS Keychain 令牌保护**
+   - 单用户本地工作区，启动即直接进入「账号 / 填报 / 记录 / 提醒 / 点位」5 标签原生界面。
+   - 来宝接龙 Bearer Token 按 `accountName` 仅加密存储在系统 **Keychain**（`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`），绝不落盘明文 JSON。
+   - 网络层强制 HTTPS 校验并拦截协议降级，运行日志自动脱敏 `Bearer` / `Authorization` 凭据。
 
 2. **多方式登录来宝账号**
    - **公众号扫码登录**：原生 `CoreImage` 生成二维码并自动轮询扫码状态。
@@ -65,8 +64,8 @@ laibao-ios/
 │   └── Assets.xcassets/           # AccentColor 与 1024×1024 Light/Dark/Tinted AppIcon
 ├── Sources/
 │   ├── App/                       # App 入口、全局状态与 Liquid Glass 主壳
-│   ├── Core/                      # 纯 Swift 6 协议客户端、加密、Keychain、地理算法、存储与调度
-│   └── Views/                     # 账号、填报、地图选点、记录、提醒、POI、管理员与 Liquid Glass 组件
+│   ├── Core/                      # 纯 Swift 6 协议客户端、Keychain、地理算法、本地存储与调度
+│   └── Views/                     # 账号、填报、地图选点、记录、提醒、POI 与 Liquid Glass 组件
 ├── Tests/
 │   └── LaiBaoTests/               # 离线 XCTest 单元测试套件
 ├── scripts/
@@ -120,5 +119,4 @@ bash scripts/build-unsigned-ipa.sh
 
 > **权限说明**：
 > - `NSLocationWhenInUseUsageDescription`：用于在地图选点时定位当前位置并校验打卡围栏距离。
-> - `NSFaceIDUsageDescription`：用于快速解锁来宝接龙本地密码门禁。
 > - `UIBackgroundModes: fetch` 与 `BGTaskSchedulerPermittedIdentifiers`：仅用于可选的本地定时提醒后台刷新；受 iOS 沙盒机制限制，定时任务仍以本地通知提醒 + 一键打卡为主。

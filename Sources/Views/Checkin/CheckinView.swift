@@ -486,7 +486,7 @@ struct CheckinView: View {
     }
 
     private func submitForm() {
-        guard let form = loadedForm, let user = appState.currentUser else { return }
+        guard let form = loadedForm else { return }
         submitError = nil
         lastSubmitSummary = nil
 
@@ -528,7 +528,7 @@ struct CheckinView: View {
                     fid: result.fid,
                     message: built.warnings.isEmpty ? summary : "\(summary)（提示：\(built.warnings.joined(separator: "；"))）"
                 )
-                try? appState.workspaceStore.appendRunLog(log, for: user.id)
+                try? appState.workspaceStore.appendRunLog(log)
                 appState.refreshWorkspace()
                 appState.showToast(summary)
             } catch {
@@ -542,7 +542,7 @@ struct CheckinView: View {
                     fid: editFID,
                     message: error.localizedDescription
                 )
-                try? appState.workspaceStore.appendRunLog(failLog, for: user.id)
+                try? appState.workspaceStore.appendRunLog(failLog)
                 appState.refreshWorkspace()
                 appState.showToast(error.localizedDescription, isError: true)
             }

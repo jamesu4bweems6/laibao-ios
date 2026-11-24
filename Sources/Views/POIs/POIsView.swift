@@ -319,9 +319,8 @@ struct POIsView: View {
     }
 
     private func savePOI(_ poi: POIItem) {
-        guard let user = appState.currentUser else { return }
         do {
-            _ = try appState.workspaceStore.upsertPOI(poi, for: user.id)
+            _ = try appState.workspaceStore.upsertPOI(poi)
             appState.refreshWorkspace()
             appState.showToast("已保存点位「\(poi.title.isEmpty ? poi.gcj02Point.formatted : poi.title)」")
         } catch {
@@ -330,9 +329,8 @@ struct POIsView: View {
     }
 
     private func deletePOI(_ poi: POIItem) {
-        guard let user = appState.currentUser else { return }
         do {
-            _ = try appState.workspaceStore.deletePOI(id: poi.id, for: user.id)
+            _ = try appState.workspaceStore.deletePOI(id: poi.id)
             appState.refreshWorkspace()
             appState.showToast("已删除点位「\(poi.title)」")
         } catch {

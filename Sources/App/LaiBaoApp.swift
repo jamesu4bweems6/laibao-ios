@@ -7,8 +7,8 @@ import UserNotifications
 /// app-refresh handler at launch before the first scene appears.
 @MainActor
 final class LaiBaoAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-    var onNotificationDeepLink: (@MainActor (String, String?) -> Void)?
-    private var pendingDeepLink: (formID: String, userID: String?)?
+    var onNotificationDeepLink: (@MainActor (String) -> Void)?
+    private var pendingDeepLinkFormID: String?
 
     nonisolated override init() {
         super.init()
@@ -23,11 +23,11 @@ final class LaiBaoAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         return true
     }
 
-    func attachDeepLinkHandler(_ handler: @escaping @MainActor (String, String?) -> Void) {
+    func attachDeepLinkHandler(_ handler: @escaping @MainActor (String) -> Void) {
         onNotificationDeepLink = handler
-        if let pending = pendingDeepLink {
-            pendingDeepLink = nil
-            handler(pending.formID, pending.userID)
+        if let pending = pendingDeepLinkFormID {
+            pendingDeepLinkFormID = nil
+            handler(pending)
         }
     }
 
@@ -64,14 +64,13 @@ final class LaiBaoAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     ) async {
         let userInfo = response.notification.request.content.userInfo
         let formID = (userInfo["formID"] as? String) ?? ""
-        let userID = userInfo["userID"] as? String
         guard !formID.isEmpty else { return }
 
         await MainActor.run {
             if let handler = self.onNotificationDeepLink {
-                handler(formID, userID)
+                handler(formID)
             } else {
-                self.pendingDeepLink = (formID: formID, userID: userID)
+                self.pendingDeepLinkFormID = formID
             }
         }
     }
@@ -84,19 +83,13 @@ struct LaiBaoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if appState.isUnlocked {
-                    RootTabView()
-                } else {
-                    AuthGateView()
+            RootTabView()
+                .environment(appState)
+                .onAppear {
+                    appDelegate.attachDeepLinkHandler { formID in
+                        appState.handleNotificationDeepLink(formID: formID)
+                    }
                 }
-            }
-            .environment(appState)
-            .onAppear {
-                appDelegate.attachDeepLinkHandler { formID, userID in
-                    appState.handleNotificationDeepLink(formID: formID, userID: userID)
-                }
-            }
         }
     }
 }

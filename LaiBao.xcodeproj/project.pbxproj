@@ -10,10 +10,10 @@
 		DFE604857B0AD5121994605D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 15E4DE78B540939116F5DC26 /* Assets.xcassets */; };
 		D81D06482DE8C27DCA106954 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A538FBD17B3858C8E09170 /* AppState.swift */; };
 		83F1E2F1D3E097AC84289BC4 /* LaiBaoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F90F70B294C6728FFE6C97A /* LaiBaoApp.swift */; };
-		54DF4EAF17328A996D7D1DC1 /* AuthSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C92F7341719D63CFBE46E4 /* AuthSecurity.swift */; };
 		0CAF66C601CC3B7C34C91F05 /* FormLinkParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3273FE4A8E782FE9BC8DB4FE /* FormLinkParser.swift */; };
 		9772F855C1456EA5D6FAD976 /* GeoMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D96E8624666E5B3E84E352E /* GeoMath.swift */; };
 		C20AB2D603CE43259FCA932C /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE7600924B027753C9BAF1F /* JSONValue.swift */; };
+		9F2C6A18E4D357B0A18C4E29 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B4E91C2A60F48D19E3B2C54 /* KeychainStore.swift */; };
 		D3D6D8FCDE43220E9D8B73EA /* LaiBaoAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81BD2C24E878821DE4A2309 /* LaiBaoAPIClient.swift */; };
 		0CDBD888877748DE64B68B27 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21BAE65D7F5F8019905AE12B /* Models.swift */; };
 		EDC973CF0F8F3BFCAACDFADC /* PayloadBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F71AD061B4C8E372435FD6 /* PayloadBuilder.swift */; };
@@ -21,8 +21,6 @@
 		CA2AB46CD4F8D8ED448F0B7A /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EF58EF670309ADCA874199E /* ReminderScheduler.swift */; };
 		35E8AEB9544749DDE84D77DB /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A16C927D1CC79CD726D3AEF /* WorkspaceStore.swift */; };
 		23F815B0584C64C371C8521B /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F8233211393A440154FD65 /* AccountsView.swift */; };
-		8ED3818CE81636184D278778 /* AdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E88782D2681A3D1A8BB7E7 /* AdminConsoleView.swift */; };
-		801C9B7246BABD4DA17EB3A7 /* AuthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD9C150DEC96758265A7CD5 /* AuthGateView.swift */; };
 		B9B6F317AAC30AB95F6A6FC3 /* CheckinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA008A9F8AD535F3192499D /* CheckinView.swift */; };
 		BAF7A6402818F07775C8B51C /* DynamicFieldRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6424AE287F22470112C23DD /* DynamicFieldRow.swift */; };
 		8488A72369E58E94D33CA8BC /* MyFormsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3135BF74E8D2E62192343130 /* MyFormsSheet.swift */; };
@@ -32,9 +30,9 @@
 		049851B5A6B6E94CE2AF5177 /* POIsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DBFF448F6A6DB76753B8385 /* POIsView.swift */; };
 		FDB6C64916A01EA1DB6348FA /* RecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA98C9658A10ACDCCFEF393 /* RecordsView.swift */; };
 		E82950D9A86507BF493E564F /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD1C7B83216B1B42628B554 /* RemindersView.swift */; };
-		E1257A6E2634D4A87BBC01A7 /* AuthSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB85E127DAC31CD5540F0C55 /* AuthSecurityTests.swift */; };
 		6892650087D2681EB4EB5E37 /* FormLinkParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014530C9609264AEFBD32853 /* FormLinkParserTests.swift */; };
 		BC3AB4DC400F0A95E4FFC3BD /* GeoMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3C40E657D271AEB23B568C /* GeoMathTests.swift */; };
+		4D8B2E73F1A690C5E37B8A12 /* KeychainStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3A84E1D9027F5B2A1E9D47 /* KeychainStoreTests.swift */; };
 		D9484F04716AE6E38FCDBF79 /* LaiBaoAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB74FBB32E98DECA3E61CF3 /* LaiBaoAPIClientTests.swift */; };
 		0909295D736AB6ADB05BF859 /* PayloadBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8D1E40EF3CA38721AC461B /* PayloadBuilderTests.swift */; };
 /* End PBXBuildFile section */
@@ -52,10 +50,10 @@
 /* Begin PBXFileReference section */
 		A8A538FBD17B3858C8E09170 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		4F90F70B294C6728FFE6C97A /* LaiBaoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaiBaoApp.swift; sourceTree = "<group>"; };
-		A1C92F7341719D63CFBE46E4 /* AuthSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSecurity.swift; sourceTree = "<group>"; };
 		3273FE4A8E782FE9BC8DB4FE /* FormLinkParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormLinkParser.swift; sourceTree = "<group>"; };
 		2D96E8624666E5B3E84E352E /* GeoMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoMath.swift; sourceTree = "<group>"; };
 		6DE7600924B027753C9BAF1F /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
+		7B4E91C2A60F48D19E3B2C54 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		D81BD2C24E878821DE4A2309 /* LaiBaoAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaiBaoAPIClient.swift; sourceTree = "<group>"; };
 		21BAE65D7F5F8019905AE12B /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		41F71AD061B4C8E372435FD6 /* PayloadBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayloadBuilder.swift; sourceTree = "<group>"; };
@@ -63,8 +61,6 @@
 		3EF58EF670309ADCA874199E /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		5A16C927D1CC79CD726D3AEF /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
 		58F8233211393A440154FD65 /* AccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsView.swift; sourceTree = "<group>"; };
-		46E88782D2681A3D1A8BB7E7 /* AdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminConsoleView.swift; sourceTree = "<group>"; };
-		0CD9C150DEC96758265A7CD5 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
 		BBA008A9F8AD535F3192499D /* CheckinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckinView.swift; sourceTree = "<group>"; };
 		C6424AE287F22470112C23DD /* DynamicFieldRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicFieldRow.swift; sourceTree = "<group>"; };
 		3135BF74E8D2E62192343130 /* MyFormsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyFormsSheet.swift; sourceTree = "<group>"; };
@@ -74,9 +70,9 @@
 		0DBFF448F6A6DB76753B8385 /* POIsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = POIsView.swift; sourceTree = "<group>"; };
 		4DA98C9658A10ACDCCFEF393 /* RecordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordsView.swift; sourceTree = "<group>"; };
 		1FD1C7B83216B1B42628B554 /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
-		AB85E127DAC31CD5540F0C55 /* AuthSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSecurityTests.swift; sourceTree = "<group>"; };
 		014530C9609264AEFBD32853 /* FormLinkParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormLinkParserTests.swift; sourceTree = "<group>"; };
 		6F3C40E657D271AEB23B568C /* GeoMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoMathTests.swift; sourceTree = "<group>"; };
+		6C3A84E1D9027F5B2A1E9D47 /* KeychainStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreTests.swift; sourceTree = "<group>"; };
 		4EB74FBB32E98DECA3E61CF3 /* LaiBaoAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaiBaoAPIClientTests.swift; sourceTree = "<group>"; };
 		CC8D1E40EF3CA38721AC461B /* PayloadBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayloadBuilderTests.swift; sourceTree = "<group>"; };
 		0C9AA94759B4CAB69334E5F5 /* LaiBao.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LaiBao.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -153,10 +149,10 @@
 		A459F831FE7712E446BAEEB9 /* Core */ = {
 			isa = PBXGroup;
 			children = (
-				A1C92F7341719D63CFBE46E4 /* AuthSecurity.swift */,
 				3273FE4A8E782FE9BC8DB4FE /* FormLinkParser.swift */,
 				2D96E8624666E5B3E84E352E /* GeoMath.swift */,
 				6DE7600924B027753C9BAF1F /* JSONValue.swift */,
+				7B4E91C2A60F48D19E3B2C54 /* KeychainStore.swift */,
 				D81BD2C24E878821DE4A2309 /* LaiBaoAPIClient.swift */,
 				21BAE65D7F5F8019905AE12B /* Models.swift */,
 				41F71AD061B4C8E372435FD6 /* PayloadBuilder.swift */,
@@ -171,8 +167,6 @@
 			isa = PBXGroup;
 			children = (
 				15C3C2FFF7E74862D6C705A2 /* Accounts */,
-				BAFFA0DB37BEF60F6234D4AA /* Admin */,
-				C74EE16CFE709E81969BF826 /* Auth */,
 				5945D5A19C3B03BA45BFFD30 /* Checkin */,
 				A01E36CEF4060C60348F9683 /* LiquidGlass */,
 				68DCD26B5850396D2C395365 /* Main */,
@@ -190,22 +184,6 @@
 				58F8233211393A440154FD65 /* AccountsView.swift */,
 			);
 			path = Accounts;
-			sourceTree = "<group>";
-		};
-		BAFFA0DB37BEF60F6234D4AA /* Admin */ = {
-			isa = PBXGroup;
-			children = (
-				46E88782D2681A3D1A8BB7E7 /* AdminConsoleView.swift */,
-			);
-			path = Admin;
-			sourceTree = "<group>";
-		};
-		C74EE16CFE709E81969BF826 /* Auth */ = {
-			isa = PBXGroup;
-			children = (
-				0CD9C150DEC96758265A7CD5 /* AuthGateView.swift */,
-			);
-			path = Auth;
 			sourceTree = "<group>";
 		};
 		5945D5A19C3B03BA45BFFD30 /* Checkin */ = {
@@ -277,9 +255,9 @@
 		8B3D6520E67D35DDADF0DF60 /* LaiBaoTests */ = {
 			isa = PBXGroup;
 			children = (
-				AB85E127DAC31CD5540F0C55 /* AuthSecurityTests.swift */,
 				014530C9609264AEFBD32853 /* FormLinkParserTests.swift */,
 				6F3C40E657D271AEB23B568C /* GeoMathTests.swift */,
+				6C3A84E1D9027F5B2A1E9D47 /* KeychainStoreTests.swift */,
 				4EB74FBB32E98DECA3E61CF3 /* LaiBaoAPIClientTests.swift */,
 				CC8D1E40EF3CA38721AC461B /* PayloadBuilderTests.swift */,
 			);
@@ -390,10 +368,10 @@
 			files = (
 				D81D06482DE8C27DCA106954 /* AppState.swift in Sources */,
 				83F1E2F1D3E097AC84289BC4 /* LaiBaoApp.swift in Sources */,
-				54DF4EAF17328A996D7D1DC1 /* AuthSecurity.swift in Sources */,
 				0CAF66C601CC3B7C34C91F05 /* FormLinkParser.swift in Sources */,
 				9772F855C1456EA5D6FAD976 /* GeoMath.swift in Sources */,
 				C20AB2D603CE43259FCA932C /* JSONValue.swift in Sources */,
+				9F2C6A18E4D357B0A18C4E29 /* KeychainStore.swift in Sources */,
 				D3D6D8FCDE43220E9D8B73EA /* LaiBaoAPIClient.swift in Sources */,
 				0CDBD888877748DE64B68B27 /* Models.swift in Sources */,
 				EDC973CF0F8F3BFCAACDFADC /* PayloadBuilder.swift in Sources */,
@@ -401,8 +379,6 @@
 				CA2AB46CD4F8D8ED448F0B7A /* ReminderScheduler.swift in Sources */,
 				35E8AEB9544749DDE84D77DB /* WorkspaceStore.swift in Sources */,
 				23F815B0584C64C371C8521B /* AccountsView.swift in Sources */,
-				8ED3818CE81636184D278778 /* AdminConsoleView.swift in Sources */,
-				801C9B7246BABD4DA17EB3A7 /* AuthGateView.swift in Sources */,
 				B9B6F317AAC30AB95F6A6FC3 /* CheckinView.swift in Sources */,
 				BAF7A6402818F07775C8B51C /* DynamicFieldRow.swift in Sources */,
 				8488A72369E58E94D33CA8BC /* MyFormsSheet.swift in Sources */,
@@ -419,9 +395,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E1257A6E2634D4A87BBC01A7 /* AuthSecurityTests.swift in Sources */,
 				6892650087D2681EB4EB5E37 /* FormLinkParserTests.swift in Sources */,
 				BC3AB4DC400F0A95E4FFC3BD /* GeoMathTests.swift in Sources */,
+				4D8B2E73F1A690C5E37B8A12 /* KeychainStoreTests.swift in Sources */,
 				D9484F04716AE6E38FCDBF79 /* LaiBaoAPIClientTests.swift in Sources */,
 				0909295D736AB6ADB05BF859 /* PayloadBuilderTests.swift in Sources */,
 			);

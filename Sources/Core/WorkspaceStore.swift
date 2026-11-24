@@ -21,10 +21,10 @@ public enum WorkspaceError: LocalizedError, Sendable, Equatable {
     }
 }
 
-/// Thread-safe per-user isolated workspace storage persisted under:
-/// `Application Support/LaiBao/users/<safeUserID>/`
+/// Thread-safe single-user local workspace storage persisted under:
+/// `Application Support/LaiBao/`
 /// - `settings.json` (`UserWorkspaceSettings`)
-/// - `accounts.json` (`[LaiBaoAccount]` metadata ONLY; bearer tokens live strictly in Keychain!)
+/// - `accounts.json` (`[LaiBaoAccount]` metadata ONLY; bearer tokens live strictly in iOS Keychain!)
 /// - `pois.json` (`[POIItem]`)
 /// - `reminders.json` (`[ReminderPlan]`)
 /// - `run_logs.json` (`[CheckinRunLog]` capped ring buffer with token redaction)
@@ -35,17 +35,28 @@ public final class UserWorkspaceStore: @unchecked Sendable {
     private let rootDirectory: URL
     private let secretStore: any SecretStoring
 
+    public static func defaultRootDirectory() -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("LaiBao", isDirectory: true)
+    }
+
     public init(
         rootDirectory: URL? = nil,
         secretStore: any SecretStoring = KeychainStore()
     ) {
-        self.rootDirectory = rootDirectory ?? LocalAuthStore.defaultRootDirectory()
+        self.rootDirectory = (rootDirectory ?? Self.defaultRootDirectory()).standardizedFileURL
         self.secretStore = secretStore
+    }
+
+    /// Root directory where local JSON workspace files are stored.
+    public var workspaceDirectory: URL {
+        rootDirectory
     }
 
     // MARK: - Path & ID Validation
 
-    /// Strictly validates an identifier (`userID` / `accountName` / `formID`) against path traversal
+    /// Strictly validates an identifier (`accountName` / `formID`) against path traversal
     /// and illegal filesystem characters (100% parity with Go `cfg.SanitizeID`).
     public static func sanitizeID(_ id: String) throws -> String {
         guard !id.isEmpty, id.trimmingCharacters(in: .whitespacesAndNewlines) == id else {
@@ -70,50 +81,32 @@ public final class UserWorkspaceStore: @unchecked Sendable {
         return id
     }
 
-    /// Returns the validated isolated directory URL for a local user.
-    public func userDirectory(for userID: String) throws -> URL {
-        let safeID = try Self.sanitizeID(userID)
-        let usersRoot = rootDirectory.appendingPathComponent("users", isDirectory: true).standardizedFileURL
-        let userDir = usersRoot.appendingPathComponent(safeID, isDirectory: true).standardizedFileURL
-
-        let expectedPrefix = usersRoot.path.hasSuffix("/") ? usersRoot.path : usersRoot.path + "/"
-        guard userDir.path.hasPrefix(expectedPrefix),
-              userDir.lastPathComponent == safeID else {
-            throw WorkspaceError.invalidIdentifier("用户目录路径校验失败: \(userID)")
-        }
-        return userDir
-    }
-
     // MARK: - Settings
 
-    public func loadSettings(for userID: String) throws -> UserWorkspaceSettings {
-        let dir = try userDirectory(for: userID)
+    public func loadSettings() throws -> UserWorkspaceSettings {
         lock.lock()
         defer { lock.unlock() }
-        return try readJSONLocked(UserWorkspaceSettings.self, from: dir.appendingPathComponent("settings.json"))
+        return try readJSONLocked(UserWorkspaceSettings.self, from: rootDirectory.appendingPathComponent("settings.json"))
             ?? UserWorkspaceSettings()
     }
 
-    public func saveSettings(_ settings: UserWorkspaceSettings, for userID: String) throws {
-        let dir = try userDirectory(for: userID)
+    public func saveSettings(_ settings: UserWorkspaceSettings) throws {
         lock.lock()
         defer { lock.unlock() }
-        try writeJSONLocked(settings, to: dir.appendingPathComponent("settings.json"), in: dir)
+        try writeJSONLocked(settings, to: rootDirectory.appendingPathComponent("settings.json"), in: rootDirectory)
     }
 
     // MARK: - Accounts (Metadata on Disk + Tokens in Keychain)
 
-    public func loadAccounts(for userID: String) throws -> [LaiBaoAccount] {
-        let safeUserID = try Self.sanitizeID(userID)
-        let dir = try userDirectory(for: safeUserID)
+    public func loadAccounts() throws -> [LaiBaoAccount] {
         lock.lock()
         defer { lock.unlock() }
 
-        let stored = try readJSONLocked([LaiBaoAccount].self, from: dir.appendingPathComponent("accounts.json")) ?? []
+        let stored = try readJSONLocked([LaiBaoAccount].self, from: rootDirectory.appendingPathComponent("accounts.json")) ?? []
         var refreshed: [LaiBaoAccount] = []
         refreshed.reserveCapacity(stored.count)
         for var account in stored {
-            let key = KeychainStore.tokenKey(userID: safeUserID, accountName: account.name)
+            let key = KeychainStore.tokenKey(accountName: account.name)
             if let token = try? secretStore.readSecret(forKey: key), !token.isEmpty {
                 account.hasToken = true
                 if account.tokenMask.isEmpty {
@@ -129,23 +122,20 @@ public final class UserWorkspaceStore: @unchecked Sendable {
     }
 
     /// Saves or updates an account's metadata on disk and (when `token` is provided) stores the stripped
-    /// bearer token strictly in iOS Keychain under `(userID, accountName)`.
+    /// bearer token strictly in iOS Keychain keyed by `accountName`.
     @discardableResult
     public func upsertAccount(
         _ account: LaiBaoAccount,
         token: String?,
-        setActive: Bool = true,
-        for userID: String
+        setActive: Bool = true
     ) throws -> LaiBaoAccount {
-        let safeUserID = try Self.sanitizeID(userID)
         let trimmedName = account.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let safeName = try Self.sanitizeID(trimmedName.isEmpty ? "default" : trimmedName)
-        let dir = try userDirectory(for: safeUserID)
 
         lock.lock()
         defer { lock.unlock() }
 
-        let key = KeychainStore.tokenKey(userID: safeUserID, accountName: safeName)
+        let key = KeychainStore.tokenKey(accountName: safeName)
         var effectiveHasToken = false
         var effectiveMask = ""
 
@@ -177,7 +167,7 @@ public final class UserWorkspaceStore: @unchecked Sendable {
         updated.hasToken = effectiveHasToken
         updated.tokenMask = effectiveMask
 
-        let accountsURL = dir.appendingPathComponent("accounts.json")
+        let accountsURL = rootDirectory.appendingPathComponent("accounts.json")
         var accounts = try readJSONLocked([LaiBaoAccount].self, from: accountsURL) ?? []
         if let idx = accounts.firstIndex(where: { $0.name == safeName }) {
             accounts[idx] = updated
@@ -185,83 +175,77 @@ public final class UserWorkspaceStore: @unchecked Sendable {
             accounts.append(updated)
         }
         accounts.sort { $0.name < $1.name }
-        try writeJSONLocked(accounts, to: accountsURL, in: dir)
+        try writeJSONLocked(accounts, to: accountsURL, in: rootDirectory)
 
-        let settingsURL = dir.appendingPathComponent("settings.json")
+        let settingsURL = rootDirectory.appendingPathComponent("settings.json")
         var settings = try readJSONLocked(UserWorkspaceSettings.self, from: settingsURL) ?? UserWorkspaceSettings()
         if setActive || settings.activeAccount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             settings.activeAccount = safeName
-            try writeJSONLocked(settings, to: settingsURL, in: dir)
+            try writeJSONLocked(settings, to: settingsURL, in: rootDirectory)
         }
 
         return updated
     }
 
-    public func readToken(accountName: String, for userID: String) throws -> String? {
-        let safeUserID = try Self.sanitizeID(userID)
+    public func readToken(accountName: String) throws -> String? {
         let safeName = try Self.sanitizeID(accountName.trimmingCharacters(in: .whitespacesAndNewlines))
-        let key = KeychainStore.tokenKey(userID: safeUserID, accountName: safeName)
+        let key = KeychainStore.tokenKey(accountName: safeName)
         return try secretStore.readSecret(forKey: key)
     }
 
-    public func setActiveAccount(_ accountName: String, for userID: String) throws {
-        let safeUserID = try Self.sanitizeID(userID)
+    public func setActiveAccount(_ accountName: String) throws {
         let safeName = try Self.sanitizeID(accountName.trimmingCharacters(in: .whitespacesAndNewlines))
-        let dir = try userDirectory(for: safeUserID)
 
         lock.lock()
         defer { lock.unlock() }
 
-        let accounts = try readJSONLocked([LaiBaoAccount].self, from: dir.appendingPathComponent("accounts.json")) ?? []
+        let accounts = try readJSONLocked([LaiBaoAccount].self, from: rootDirectory.appendingPathComponent("accounts.json")) ?? []
         guard accounts.contains(where: { $0.name == safeName }) else {
             throw WorkspaceError.accountNotFound(safeName)
         }
-        let settingsURL = dir.appendingPathComponent("settings.json")
+        let settingsURL = rootDirectory.appendingPathComponent("settings.json")
         var settings = try readJSONLocked(UserWorkspaceSettings.self, from: settingsURL) ?? UserWorkspaceSettings()
         settings.activeAccount = safeName
-        try writeJSONLocked(settings, to: settingsURL, in: dir)
+        try writeJSONLocked(settings, to: settingsURL, in: rootDirectory)
     }
 
-    public func deleteAccount(name: String, for userID: String) throws {
-        let safeUserID = try Self.sanitizeID(userID)
+    public func deleteAccount(name: String) throws {
         let safeName = try Self.sanitizeID(name.trimmingCharacters(in: .whitespacesAndNewlines))
-        let dir = try userDirectory(for: safeUserID)
 
         lock.lock()
         defer { lock.unlock() }
 
-        let key = KeychainStore.tokenKey(userID: safeUserID, accountName: safeName)
+        let key = KeychainStore.tokenKey(accountName: safeName)
         try secretStore.deleteSecret(forKey: key)
 
-        let accountsURL = dir.appendingPathComponent("accounts.json")
+        let accountsURL = rootDirectory.appendingPathComponent("accounts.json")
         var accounts = try readJSONLocked([LaiBaoAccount].self, from: accountsURL) ?? []
         accounts.removeAll { $0.name == safeName }
         accounts.sort { $0.name < $1.name }
-        try writeJSONLocked(accounts, to: accountsURL, in: dir)
+        try writeJSONLocked(accounts, to: accountsURL, in: rootDirectory)
 
-        let settingsURL = dir.appendingPathComponent("settings.json")
+        let settingsURL = rootDirectory.appendingPathComponent("settings.json")
         var settings = try readJSONLocked(UserWorkspaceSettings.self, from: settingsURL) ?? UserWorkspaceSettings()
         if settings.activeAccount == safeName {
             settings.activeAccount = accounts.first?.name ?? "default"
-            try writeJSONLocked(settings, to: settingsURL, in: dir)
+            try writeJSONLocked(settings, to: settingsURL, in: rootDirectory)
         }
     }
 
     /// Builds a ready-to-use `LaiBaoAPIClient` from the specified (or active) account's metadata and Keychain token.
     public func makeAPIClient(
         accountName: String? = nil,
-        for userID: String,
         session: URLSession? = nil
     ) throws -> LaiBaoAPIClient {
-        let settings = try loadSettings(for: userID)
-        let accounts = try loadAccounts(for: userID)
+        let settings = try loadSettings()
+        let accounts = try loadAccounts()
         let requested = accountName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let targetName = requested.isEmpty ? settings.activeAccount : requested
 
         let account = accounts.first(where: { $0.name == targetName })
             ?? accounts.first
         let resolvedName = account?.name ?? (targetName.isEmpty ? "default" : targetName)
-        let token = (try? readToken(accountName: resolvedName, for: userID)) ?? ""
+        let token = (try? readToken(accountName: resolvedName)) ?? ""
 
         return LaiBaoAPIClient(
             baseURL: account?.baseURL ?? LaiBaoAPIClient.defaultBaseURL,
@@ -274,14 +258,13 @@ public final class UserWorkspaceStore: @unchecked Sendable {
 
     // MARK: - POIs
 
-    public func loadPOIs(for userID: String) throws -> [POIItem] {
-        let dir = try userDirectory(for: userID)
+    public func loadPOIs() throws -> [POIItem] {
         lock.lock()
         defer { lock.unlock() }
-        return try readJSONLocked([POIItem].self, from: dir.appendingPathComponent("pois.json")) ?? []
+        return try readJSONLocked([POIItem].self, from: rootDirectory.appendingPathComponent("pois.json")) ?? []
     }
 
-    public func savePOIs(_ pois: [POIItem], for userID: String) throws {
+    public func savePOIs(_ pois: [POIItem]) throws {
         for (idx, poi) in pois.enumerated() {
             do {
                 try poi.validate()
@@ -289,115 +272,98 @@ public final class UserWorkspaceStore: @unchecked Sendable {
                 throw WorkspaceError.invalidPOI("第 \(idx + 1) 个点位无效: \(error.localizedDescription)")
             }
         }
-        let dir = try userDirectory(for: userID)
         lock.lock()
         defer { lock.unlock() }
-        try writeJSONLocked(pois, to: dir.appendingPathComponent("pois.json"), in: dir)
+        try writeJSONLocked(pois, to: rootDirectory.appendingPathComponent("pois.json"), in: rootDirectory)
     }
 
     @discardableResult
-    public func upsertPOI(_ poi: POIItem, for userID: String) throws -> [POIItem] {
+    public func upsertPOI(_ poi: POIItem) throws -> [POIItem] {
         do {
             try poi.validate()
         } catch {
             throw WorkspaceError.invalidPOI("点位无效: \(error.localizedDescription)")
         }
-        let dir = try userDirectory(for: userID)
         lock.lock()
         defer { lock.unlock() }
-        let url = dir.appendingPathComponent("pois.json")
+        let url = rootDirectory.appendingPathComponent("pois.json")
         var list = try readJSONLocked([POIItem].self, from: url) ?? []
         if let idx = list.firstIndex(where: { $0.id == poi.id }) {
             list[idx] = poi
         } else {
             list.append(poi)
         }
-        try writeJSONLocked(list, to: url, in: dir)
+        try writeJSONLocked(list, to: url, in: rootDirectory)
         return list
     }
 
     @discardableResult
-    public func deletePOI(id: String, for userID: String) throws -> [POIItem] {
-        let dir = try userDirectory(for: userID)
+    public func deletePOI(id: String) throws -> [POIItem] {
         lock.lock()
         defer { lock.unlock() }
-        let url = dir.appendingPathComponent("pois.json")
+        let url = rootDirectory.appendingPathComponent("pois.json")
         var list = try readJSONLocked([POIItem].self, from: url) ?? []
         list.removeAll { $0.id == id }
-        try writeJSONLocked(list, to: url, in: dir)
+        try writeJSONLocked(list, to: url, in: rootDirectory)
         return list
     }
 
     // MARK: - Reminders
 
-    public func loadReminders(for userID: String) throws -> [ReminderPlan] {
-        let dir = try userDirectory(for: userID)
+    public func loadReminders() throws -> [ReminderPlan] {
         lock.lock()
         defer { lock.unlock() }
-        return try readJSONLocked([ReminderPlan].self, from: dir.appendingPathComponent("reminders.json")) ?? []
+        return try readJSONLocked([ReminderPlan].self, from: rootDirectory.appendingPathComponent("reminders.json")) ?? []
     }
 
-    public func saveReminders(_ plans: [ReminderPlan], for userID: String) throws {
-        let dir = try userDirectory(for: userID)
+    public func saveReminders(_ plans: [ReminderPlan]) throws {
         lock.lock()
         defer { lock.unlock() }
-        try writeJSONLocked(plans, to: dir.appendingPathComponent("reminders.json"), in: dir)
+        try writeJSONLocked(plans, to: rootDirectory.appendingPathComponent("reminders.json"), in: rootDirectory)
     }
 
     @discardableResult
-    public func upsertReminder(_ plan: ReminderPlan, for userID: String) throws -> [ReminderPlan] {
-        let dir = try userDirectory(for: userID)
+    public func upsertReminder(_ plan: ReminderPlan) throws -> [ReminderPlan] {
         lock.lock()
         defer { lock.unlock() }
-        let url = dir.appendingPathComponent("reminders.json")
+        let url = rootDirectory.appendingPathComponent("reminders.json")
         var list = try readJSONLocked([ReminderPlan].self, from: url) ?? []
         if let idx = list.firstIndex(where: { $0.id == plan.id }) {
             list[idx] = plan
         } else {
             list.append(plan)
         }
-        try writeJSONLocked(list, to: url, in: dir)
+        try writeJSONLocked(list, to: url, in: rootDirectory)
         return list
     }
 
     @discardableResult
-    public func deleteReminder(id: String, for userID: String) throws -> [ReminderPlan] {
-        let dir = try userDirectory(for: userID)
+    public func deleteReminder(id: String) throws -> [ReminderPlan] {
         lock.lock()
         defer { lock.unlock() }
-        let url = dir.appendingPathComponent("reminders.json")
+        let url = rootDirectory.appendingPathComponent("reminders.json")
         var list = try readJSONLocked([ReminderPlan].self, from: url) ?? []
         list.removeAll { $0.id == id }
-        try writeJSONLocked(list, to: url, in: dir)
+        try writeJSONLocked(list, to: url, in: rootDirectory)
         return list
-    }
-
-    /// Loads reminder plans across all provided local users (for Admin Console global overview).
-    public func loadAllUsersReminders(users: [PublicLocalUser]) -> [(user: PublicLocalUser, plans: [ReminderPlan])] {
-        users.map { user in
-            let plans = (try? loadReminders(for: user.id)) ?? []
-            return (user: user, plans: plans)
-        }
     }
 
     // MARK: - Sanitized Check-in Run Logs
 
-    public func loadRunLogs(for userID: String, planID: String? = nil) throws -> [CheckinRunLog] {
-        let dir = try userDirectory(for: userID)
+    public func loadRunLogs(planID: String? = nil) throws -> [CheckinRunLog] {
         lock.lock()
         defer { lock.unlock() }
-        let all = try readJSONLocked([CheckinRunLog].self, from: dir.appendingPathComponent("run_logs.json")) ?? []
+        let all = try readJSONLocked([CheckinRunLog].self, from: rootDirectory.appendingPathComponent("run_logs.json")) ?? []
         if let planID, !planID.isEmpty {
             return all.filter { $0.planID == planID }
         }
         return all
     }
 
-    public func appendRunLog(_ log: CheckinRunLog, for userID: String) throws {
-        let dir = try userDirectory(for: userID)
+    public func appendRunLog(_ log: CheckinRunLog) throws {
         lock.lock()
         defer { lock.unlock() }
-        let url = dir.appendingPathComponent("run_logs.json")
+        let url = rootDirectory.appendingPathComponent("run_logs.json")
         var logs = try readJSONLocked([CheckinRunLog].self, from: url) ?? []
 
         var sanitized = log
@@ -406,36 +372,13 @@ public final class UserWorkspaceStore: @unchecked Sendable {
         if logs.count > Self.maxRunLogs {
             logs = Array(logs.prefix(Self.maxRunLogs))
         }
-        try writeJSONLocked(logs, to: url, in: dir)
+        try writeJSONLocked(logs, to: url, in: rootDirectory)
     }
 
-    public func clearRunLogs(for userID: String) throws {
-        let dir = try userDirectory(for: userID)
+    public func clearRunLogs() throws {
         lock.lock()
         defer { lock.unlock() }
-        try writeJSONLocked([CheckinRunLog](), to: dir.appendingPathComponent("run_logs.json"), in: dir)
-    }
-
-    // MARK: - Cascade User Data Deletion
-
-    /// Removes all isolated disk files and all Keychain tokens belonging to `userID`.
-    public func deleteUserData(userID: String) throws {
-        let safeUserID = try Self.sanitizeID(userID)
-        let dir = try userDirectory(for: safeUserID)
-
-        lock.lock()
-        defer { lock.unlock() }
-
-        try secretStore.deleteAllSecrets(withPrefix: KeychainStore.userKeyPrefix(userID: safeUserID))
-
-        let fm = FileManager.default
-        if fm.fileExists(atPath: dir.path) {
-            do {
-                try fm.removeItem(at: dir)
-            } catch {
-                throw WorkspaceError.storageError("删除用户数据目录失败: \(error.localizedDescription)")
-            }
-        }
+        try writeJSONLocked([CheckinRunLog](), to: rootDirectory.appendingPathComponent("run_logs.json"), in: rootDirectory)
     }
 
     // MARK: - Private JSON Persistence Helpers
@@ -464,7 +407,7 @@ public final class UserWorkspaceStore: @unchecked Sendable {
         do {
             try fm.createDirectory(at: directory, withIntermediateDirectories: true)
         } catch {
-            throw WorkspaceError.storageError("创建用户目录失败: \(error.localizedDescription)")
+            throw WorkspaceError.storageError("创建本地数据目录失败: \(error.localizedDescription)")
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

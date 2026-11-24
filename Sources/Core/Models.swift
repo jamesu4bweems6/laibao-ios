@@ -957,9 +957,9 @@ public struct RecordList: Codable, Hashable, Sendable {
 
 // MARK: - Local Workspace Domain Models
 
-/// Account metadata persisted in per-user `accounts.json`.
+/// Account metadata persisted in `accounts.json`.
 /// **SECURITY**: Actual bearer tokens are NEVER stored here; they live exclusively in iOS Keychain
-/// keyed by `(userID, accountName)`.
+/// keyed by `accountName`.
 public struct LaiBaoAccount: Codable, Hashable, Sendable, Identifiable {
     public var id: String { name }
     public var name: String
@@ -1001,7 +1001,7 @@ public struct LaiBaoAccount: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// Saved Point-of-Interest entry in a user's POI pool.
+/// Saved Point-of-Interest entry in the local POI pool.
 public struct POIItem: Codable, Hashable, Sendable, Identifiable {
     public var id: String
     public var lat: Double
@@ -1043,7 +1043,7 @@ public struct POIItem: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// Local scheduled reminder / check-in plan persisted per user.
+/// Local scheduled reminder / check-in plan persisted on device.
 public struct ReminderPlan: Codable, Hashable, Sendable, Identifiable {
     public var id: String
     public var name: String
@@ -1100,7 +1100,7 @@ public struct ReminderPlan: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// Sanitized execution log entry stored in a capped per-user ring buffer.
+/// Sanitized execution log entry stored in a capped local ring buffer.
 public struct CheckinRunLog: Codable, Hashable, Sendable, Identifiable {
     public var id: String
     public var timestamp: Date
@@ -1138,25 +1138,22 @@ public struct CheckinRunLog: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// Per-user workspace preferences persisted in `settings.json`.
+/// Local workspace preferences persisted in `settings.json`.
 public struct UserWorkspaceSettings: Codable, Hashable, Sendable {
     public var activeAccount: String
     public var mpAppID: String
     public var ver: String
     public var geocodeURL: String
-    public var biometricUnlockEnabled: Bool
 
     public init(
         activeAccount: String = "default",
         mpAppID: String = LaiBaoAPIClient.defaultMPAppID,
         ver: String = LaiBaoAPIClient.defaultVer,
-        geocodeURL: String = "",
-        biometricUnlockEnabled: Bool = false
+        geocodeURL: String = ""
     ) {
         self.activeAccount = activeAccount
         self.mpAppID = mpAppID
         self.ver = ver
         self.geocodeURL = geocodeURL
-        self.biometricUnlockEnabled = biometricUnlockEnabled
     }
 }

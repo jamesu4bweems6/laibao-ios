@@ -1,15 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// Account & Local Security management tab:
-/// - Current local user card (role, change password, Face ID / Touch ID toggle, sign out)
+/// LaiBao account management & diagnostics tab:
 /// - 3 LaiBao login flows (Official Account QR auto-poll, manual Keychain token, WeChat code)
 /// - Saved LaiBao accounts list (Keychain mask, switch active, delete)
 /// - Live Whoami & Server Time (`epochMillis`) diagnostics
+/// - Workspace protocol settings (`ver`, `mpAppID`)
 struct AccountsView: View {
     @Environment(AppState.self) private var appState
 
-    @State private var showChangePassword = false
     @State private var showQRLogin = false
     @State private var showManualToken = false
     @State private var showCodeLogin = false
@@ -24,20 +23,18 @@ struct AccountsView: View {
 
     @State private var verDraft: String = ""
     @State private var mpAppIDDraft: String = ""
-    @State private var showLogoutConfirm = false
     @State private var pendingDeleteAccount: LaiBaoAccount?
 
     var body: some View {
         NavigationStack {
             List {
-                localUserSection
                 loginMethodsSection
                 savedAccountsSection
                 diagnosticsSection
                 protocolSettingsSection
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("账号与安全")
+            .navigationTitle("账号管理")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -52,9 +49,6 @@ struct AccountsView: View {
             .onAppear {
                 syncSettingsDrafts()
             }
-            .sheet(isPresented: $showChangePassword) {
-                ChangePasswordSheet()
-            }
             .sheet(isPresented: $showQRLogin) {
                 QRLoginSheet()
             }
@@ -63,16 +57,6 @@ struct AccountsView: View {
             }
             .sheet(isPresented: $showCodeLogin) {
                 CodeLoginSheet()
-            }
-            .confirmationDialog(
-                "确认退出当前本地账号？",
-                isPresented: $showLogoutConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("退出登录并锁定", role: .destructive) {
-                    appState.logout()
-                }
-                Button("取消", role: .cancel) {}
             }
             .alert(
                 "删除来宝账号",
@@ -93,63 +77,6 @@ struct AccountsView: View {
     }
 
     // MARK: - Sections
-
-    private var localUserSection: some View {
-        Section("当前本地用户") {
-            if let user = appState.currentUser {
-                HStack(spacing: 12) {
-                    Image(systemName: user.role == .admin ? "person.badge.shield.checkmark.fill" : "person.crop.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(user.role == .admin ? Color.accentColor : Color.secondary)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(user.displayName)
-                                .font(.headline)
-                            GlassStatusPill(
-                                title: user.role.displayName,
-                                systemImage: user.role == .admin ? "shield.fill" : "person.fill",
-                                tint: user.role == .admin ? .blue : .gray
-                            )
-                        }
-                        Text("@\(user.username)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        if let lastLogin = user.lastLoginAt {
-                            Text("最近登录：\(lastLogin.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-
-                Button {
-                    showChangePassword = true
-                } label: {
-                    Label("修改本地登录密码", systemImage: "key.fill")
-                }
-
-                if BiometricAuthenticator.isAvailable {
-                    let kind = BiometricAuthenticator.availableBiometry()
-                    Toggle(isOn: Binding(
-                        get: { appState.settings.biometricUnlockEnabled },
-                        set: { newValue in
-                            toggleBiometric(newValue)
-                        }
-                    )) {
-                        Label("启用\(kind.displayName)快速解锁", systemImage: kind.systemImageName)
-                    }
-                }
-
-                Button(role: .destructive) {
-                    showLogoutConfirm = true
-                } label: {
-                    Label("锁定并退出当前本地用户", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-            }
-        }
-    }
 
     private var loginMethodsSection: some View {
         Section {
@@ -395,21 +322,9 @@ struct AccountsView: View {
         mpAppIDDraft = appState.settings.mpAppID
     }
 
-    private func toggleBiometric(_ enabled: Bool) {
-        var updated = appState.settings
-        updated.biometricUnlockEnabled = enabled
-        do {
-            try appState.saveSettings(updated)
-            appState.showToast(enabled ? "已开启生物识别快速解锁" : "已关闭生物识别快速解锁")
-        } catch {
-            appState.showToast(error.localizedDescription, isError: true)
-        }
-    }
-
     private func switchAccount(_ account: LaiBaoAccount) {
-        guard let user = appState.currentUser else { return }
         do {
-            try appState.workspaceStore.setActiveAccount(account.name, for: user.id)
+            try appState.workspaceStore.setActiveAccount(account.name)
             appState.refreshWorkspace()
             whoamiProfile = nil
             whoamiError = nil
@@ -420,9 +335,8 @@ struct AccountsView: View {
     }
 
     private func deleteAccount(_ account: LaiBaoAccount) {
-        guard let user = appState.currentUser else { return }
         do {
-            try appState.workspaceStore.deleteAccount(name: account.name, for: user.id)
+            try appState.workspaceStore.deleteAccount(name: account.name)
             appState.refreshWorkspace()
             appState.showToast("已删除账号「\(account.name)」")
         } catch {
@@ -431,7 +345,6 @@ struct AccountsView: View {
     }
 
     private func checkWhoami() {
-        guard let user = appState.currentUser else { return }
         isCheckingWhoami = true
         whoamiError = nil
         Task {
@@ -444,7 +357,7 @@ struct AccountsView: View {
                     if !profile.nickName.isEmpty { active.nickName = profile.nickName }
                     if !profile.fuid.isEmpty { active.fuid = profile.fuid }
                     if !profile.openID.isEmpty { active.openID = profile.openID }
-                    _ = try? appState.workspaceStore.upsertAccount(active, token: nil, setActive: true, for: user.id)
+                    _ = try? appState.workspaceStore.upsertAccount(active, token: nil, setActive: true)
                     appState.refreshWorkspace()
                 }
                 appState.showToast("会话有效：\(profile.nickName.isEmpty ? profile.fuid : profile.nickName)")
@@ -475,83 +388,6 @@ struct AccountsView: View {
             } catch {
                 serverTimeSummary = nil
                 serverTimeError = error.localizedDescription
-            }
-        }
-    }
-}
-
-// MARK: - Change Password Sheet
-
-private struct ChangePasswordSheet: View {
-    @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var oldPassword = ""
-    @State private var newPassword = ""
-    @State private var confirmPassword = ""
-    @State private var isSaving = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("验证当前密码") {
-                    SecureField("当前密码", text: $oldPassword)
-                        .textContentType(.password)
-                }
-                Section("设置新密码（至少 8 位）") {
-                    SecureField("新密码", text: $newPassword)
-                        .textContentType(.newPassword)
-                    SecureField("确认新密码", text: $confirmPassword)
-                        .textContentType(.newPassword)
-                }
-                if let errorMessage {
-                    Section {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
-            .navigationTitle("修改本地密码")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { savePassword() }
-                        .disabled(isSaving)
-                }
-            }
-        }
-    }
-
-    private func savePassword() {
-        guard let user = appState.currentUser else { return }
-        errorMessage = nil
-        guard newPassword.count >= PasswordHasher.minPasswordLength else {
-            errorMessage = "新密码长度至少需要 \(PasswordHasher.minPasswordLength) 位"
-            return
-        }
-        guard newPassword == confirmPassword else {
-            errorMessage = "两次输入的新密码不一致"
-            return
-        }
-        isSaving = true
-        let store = appState.authStore
-        let userID = user.id
-        let oldPW = oldPassword
-        let newPW = newPassword
-        Task {
-            defer { isSaving = false }
-            do {
-                try await Task.detached(priority: .userInitiated) {
-                    try store.changeOwnPassword(userID: userID, oldPassword: oldPW, newPassword: newPW)
-                }.value
-                appState.showToast("本地登录密码已更新")
-                dismiss()
-            } catch {
-                errorMessage = error.localizedDescription
             }
         }
     }
@@ -737,7 +573,6 @@ private struct QRLoginSheet: View {
     }
 
     private func saveLoggedInAccount(_ result: LoginResult) {
-        guard let user = appState.currentUser else { return }
         let name = accountName.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalName = name.isEmpty ? "default" : name
         let account = LaiBaoAccount(
@@ -751,7 +586,7 @@ private struct QRLoginSheet: View {
             source: "qr"
         )
         do {
-            _ = try appState.workspaceStore.upsertAccount(account, token: result.token, setActive: true, for: user.id)
+            _ = try appState.workspaceStore.upsertAccount(account, token: result.token, setActive: true)
             appState.refreshWorkspace()
             appState.showToast("扫码登录成功，令牌已安全存入钥匙串")
         } catch {
@@ -834,7 +669,6 @@ private struct ManualTokenSheet: View {
     }
 
     private func saveToken() {
-        guard let user = appState.currentUser else { return }
         errorMessage = nil
 
         let cleanToken = LaiBaoAPIClient.stripAuthPrefix(tokenInput)
@@ -892,7 +726,7 @@ private struct ManualTokenSheet: View {
                 source: "manual"
             )
             do {
-                _ = try appState.workspaceStore.upsertAccount(account, token: cleanToken, setActive: true, for: user.id)
+                _ = try appState.workspaceStore.upsertAccount(account, token: cleanToken, setActive: true)
                 appState.refreshWorkspace()
                 appState.showToast("账号「\(finalName)」令牌已安全存入钥匙串")
                 dismiss()
@@ -959,7 +793,6 @@ private struct CodeLoginSheet: View {
     }
 
     private func submitCode() {
-        guard let user = appState.currentUser else { return }
         errorMessage = nil
         let cleanCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanCode.isEmpty else {
@@ -994,7 +827,7 @@ private struct CodeLoginSheet: View {
                     nickName: res.nickName,
                     source: "code"
                 )
-                _ = try appState.workspaceStore.upsertAccount(account, token: res.token, setActive: true, for: user.id)
+                _ = try appState.workspaceStore.upsertAccount(account, token: res.token, setActive: true)
                 appState.refreshWorkspace()
                 appState.showToast("微信 Code 登录成功，已切换至「\(finalName)」")
                 dismiss()

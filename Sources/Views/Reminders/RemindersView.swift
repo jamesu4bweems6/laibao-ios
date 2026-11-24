@@ -320,9 +320,8 @@ struct RemindersView: View {
     }
 
     private func saveAndSync(plan: ReminderPlan) {
-        guard let user = appState.currentUser else { return }
         do {
-            let updatedList = try appState.workspaceStore.upsertReminder(plan, for: user.id)
+            let updatedList = try appState.workspaceStore.upsertReminder(plan)
             appState.refreshWorkspace()
             Task {
                 if plan.enabled && authStatus == .notDetermined {
@@ -330,7 +329,7 @@ struct RemindersView: View {
                     await refreshNotificationStatus()
                 }
                 do {
-                    try await ReminderScheduler.syncNotifications(for: updatedList, userID: user.id)
+                    try await ReminderScheduler.syncNotifications(for: updatedList)
                     if updatedList.contains(where: \.enabled) {
                         try? ReminderScheduler.scheduleBackgroundRefresh()
                     }
@@ -345,11 +344,10 @@ struct RemindersView: View {
     }
 
     private func syncAllNotifications() {
-        guard let user = appState.currentUser else { return }
         let plans = appState.reminders
         Task {
             do {
-                try await ReminderScheduler.syncNotifications(for: plans, userID: user.id)
+                try await ReminderScheduler.syncNotifications(for: plans)
                 if plans.contains(where: \.enabled) {
                     try? ReminderScheduler.scheduleBackgroundRefresh()
                 }
@@ -361,12 +359,11 @@ struct RemindersView: View {
     }
 
     private func deletePlan(_ plan: ReminderPlan) {
-        guard let user = appState.currentUser else { return }
         do {
-            let remaining = try appState.workspaceStore.deleteReminder(id: plan.id, for: user.id)
+            let remaining = try appState.workspaceStore.deleteReminder(id: plan.id)
             appState.refreshWorkspace()
             Task {
-                try? await ReminderScheduler.syncNotifications(for: remaining, userID: user.id)
+                try? await ReminderScheduler.syncNotifications(for: remaining)
             }
             appState.showToast("已删除提醒「\(plan.name)」")
         } catch {
@@ -389,9 +386,8 @@ struct RemindersView: View {
     }
 
     private func clearLogs() {
-        guard let user = appState.currentUser else { return }
         do {
-            try appState.workspaceStore.clearRunLogs(for: user.id)
+            try appState.workspaceStore.clearRunLogs()
             appState.refreshWorkspace()
             appState.showToast("执行日志已清空")
         } catch {

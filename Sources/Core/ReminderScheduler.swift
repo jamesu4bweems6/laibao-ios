@@ -222,18 +222,17 @@ public enum ReminderScheduler {
 
     // MARK: - UNUserNotificationCenter Synchronization
 
-    public static func notificationIdentifierPrefix(userID: String, planID: String? = nil) -> String {
+    public static func notificationIdentifierPrefix(planID: String? = nil) -> String {
         if let planID, !planID.isEmpty {
-            return "laibao.reminder.\(userID).\(planID)."
+            return "laibao.reminder.\(planID)."
         }
-        return "laibao.reminder.\(userID)."
+        return "laibao.reminder."
     }
 
     /// Pure builder for `UNNotificationRequest` objects corresponding to a single `ReminderPlan`.
-    /// Attaches `userInfo: ["formID": ..., "planID": ..., "userID": ...]` for deep-link handling on tap.
+    /// Attaches `userInfo: ["formID": ..., "planID": ...]` for deep-link handling on tap.
     public static func buildNotificationRequests(
-        for plan: ReminderPlan,
-        userID: String
+        for plan: ReminderPlan
     ) throws -> [UNNotificationRequest] {
         guard plan.enabled else { return [] }
         let parsedClocks = try validateClocks(plan.clocks)
@@ -244,7 +243,7 @@ public enum ReminderScheduler {
         let body = "表单 \(plan.formID) 打卡时间已到，轻点立即进入一键填报。"
 
         var requests: [UNNotificationRequest] = []
-        let prefix = notificationIdentifierPrefix(userID: userID, planID: plan.id)
+        let prefix = notificationIdentifierPrefix(planID: plan.id)
 
         if allowedISOWeekdays.isEmpty {
             for clock in parsedClocks {
@@ -255,8 +254,7 @@ public enum ReminderScheduler {
                 content.categoryIdentifier = notificationCategoryIdentifier
                 content.userInfo = [
                     "formID": plan.formID,
-                    "planID": plan.id,
-                    "userID": userID
+                    "planID": plan.id
                 ]
 
                 var components = DateComponents()
@@ -278,8 +276,7 @@ public enum ReminderScheduler {
                     content.categoryIdentifier = notificationCategoryIdentifier
                     content.userInfo = [
                         "formID": plan.formID,
-                        "planID": plan.id,
-                        "userID": userID
+                        "planID": plan.id
                     ]
 
                     var components = DateComponents()
@@ -306,30 +303,30 @@ public enum ReminderScheduler {
         return settings.authorizationStatus
     }
 
-    /// Replaces all pending local notifications owned by `userID` with the current enabled `plans`.
-    public static func syncNotifications(for plans: [ReminderPlan], userID: String) async throws {
+    /// Replaces all pending local LaiBao reminder notifications with the current enabled `plans`.
+    public static func syncNotifications(for plans: [ReminderPlan]) async throws {
         let center = UNUserNotificationCenter.current()
-        let userPrefix = notificationIdentifierPrefix(userID: userID)
+        let prefix = notificationIdentifierPrefix()
         let pending = await center.pendingNotificationRequests()
-        let toRemove = pending.map(\.identifier).filter { $0.hasPrefix(userPrefix) }
+        let toRemove = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
         if !toRemove.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: toRemove)
         }
 
         for plan in plans where plan.enabled {
-            let requests = try buildNotificationRequests(for: plan, userID: userID)
+            let requests = try buildNotificationRequests(for: plan)
             for request in requests {
                 try await center.add(request)
             }
         }
     }
 
-    /// Cancels all pending local notifications owned by `userID`.
-    public static func removeNotifications(for userID: String) async {
+    /// Cancels all pending local LaiBao reminder notifications.
+    public static func removeAllNotifications() async {
         let center = UNUserNotificationCenter.current()
-        let userPrefix = notificationIdentifierPrefix(userID: userID)
+        let prefix = notificationIdentifierPrefix()
         let pending = await center.pendingNotificationRequests()
-        let toRemove = pending.map(\.identifier).filter { $0.hasPrefix(userPrefix) }
+        let toRemove = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
         if !toRemove.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: toRemove)
         }

@@ -29,20 +29,9 @@ struct RootTabView: View {
             Tab("点位", systemImage: "mappin.and.ellipse", value: AppTab.pois) {
                 POIsView()
             }
-
-            if appState.currentUser?.role == .admin {
-                Tab("管理", systemImage: "shield.lefthalf.filled", value: AppTab.admin) {
-                    AdminConsoleView()
-                }
-            }
         }
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .onChange(of: appState.currentUser?.role) { _, newRole in
-            if newRole != .admin && appState.selectedTab == .admin {
-                appState.selectedTab = .accounts
-            }
-        }
         .overlay(alignment: .top) {
             if let message = appState.toastMessage {
                 GlassToastBanner(
