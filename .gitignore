@@ -1,0 +1,32 @@
+# Build & packaging outputs
+build/
+dist/
+DerivedData/
+*.ipa
+*.xcarchive
+*.app
+*.dSYM.zip
+*.dSYM
+
+# Xcode user-specific state (keep shared schemes & project.pbxproj tracked)
+xcuserdata/
+*.xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xccheckout
+*.moved-aside
+*.hmap
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# SwiftPM / IDE / macOS metadata
+.swiftpm/
+.build/
+.DS_Store
+*.swp
+*~

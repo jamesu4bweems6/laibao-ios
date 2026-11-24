@@ -1,0 +1,723 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		DFE604857B0AD5121994605D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 15E4DE78B540939116F5DC26 /* Assets.xcassets */; };
+		D81D06482DE8C27DCA106954 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A538FBD17B3858C8E09170 /* AppState.swift */; };
+		83F1E2F1D3E097AC84289BC4 /* LaiBaoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F90F70B294C6728FFE6C97A /* LaiBaoApp.swift */; };
+		54DF4EAF17328A996D7D1DC1 /* AuthSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C92F7341719D63CFBE46E4 /* AuthSecurity.swift */; };
+		0CAF66C601CC3B7C34C91F05 /* FormLinkParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3273FE4A8E782FE9BC8DB4FE /* FormLinkParser.swift */; };
+		9772F855C1456EA5D6FAD976 /* GeoMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D96E8624666E5B3E84E352E /* GeoMath.swift */; };
+		C20AB2D603CE43259FCA932C /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE7600924B027753C9BAF1F /* JSONValue.swift */; };
+		D3D6D8FCDE43220E9D8B73EA /* LaiBaoAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81BD2C24E878821DE4A2309 /* LaiBaoAPIClient.swift */; };
+		0CDBD888877748DE64B68B27 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21BAE65D7F5F8019905AE12B /* Models.swift */; };
+		EDC973CF0F8F3BFCAACDFADC /* PayloadBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F71AD061B4C8E372435FD6 /* PayloadBuilder.swift */; };
+		E07E4A49E04973C8540C9CCA /* QRCodeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1985892D18CFEDA0722CCD78 /* QRCodeRenderer.swift */; };
+		CA2AB46CD4F8D8ED448F0B7A /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EF58EF670309ADCA874199E /* ReminderScheduler.swift */; };
+		35E8AEB9544749DDE84D77DB /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A16C927D1CC79CD726D3AEF /* WorkspaceStore.swift */; };
+		23F815B0584C64C371C8521B /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F8233211393A440154FD65 /* AccountsView.swift */; };
+		8ED3818CE81636184D278778 /* AdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E88782D2681A3D1A8BB7E7 /* AdminConsoleView.swift */; };
+		801C9B7246BABD4DA17EB3A7 /* AuthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD9C150DEC96758265A7CD5 /* AuthGateView.swift */; };
+		B9B6F317AAC30AB95F6A6FC3 /* CheckinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA008A9F8AD535F3192499D /* CheckinView.swift */; };
+		BAF7A6402818F07775C8B51C /* DynamicFieldRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6424AE287F22470112C23DD /* DynamicFieldRow.swift */; };
+		8488A72369E58E94D33CA8BC /* MyFormsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3135BF74E8D2E62192343130 /* MyFormsSheet.swift */; };
+		3166B9445FF53CA0B4AE60F1 /* GlassDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB6F0DE192D1F1E8A550CA3A /* GlassDesignSystem.swift */; };
+		AF425A724882F5995F0EA43F /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75A2C293018645AD59FCE9D5 /* RootTabView.swift */; };
+		B0DC9CCC922E91689704D72A /* MapPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FA238EA52B1513676B5F1A9 /* MapPickerSheet.swift */; };
+		049851B5A6B6E94CE2AF5177 /* POIsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DBFF448F6A6DB76753B8385 /* POIsView.swift */; };
+		FDB6C64916A01EA1DB6348FA /* RecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA98C9658A10ACDCCFEF393 /* RecordsView.swift */; };
+		E82950D9A86507BF493E564F /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD1C7B83216B1B42628B554 /* RemindersView.swift */; };
+		E1257A6E2634D4A87BBC01A7 /* AuthSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB85E127DAC31CD5540F0C55 /* AuthSecurityTests.swift */; };
+		6892650087D2681EB4EB5E37 /* FormLinkParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014530C9609264AEFBD32853 /* FormLinkParserTests.swift */; };
+		BC3AB4DC400F0A95E4FFC3BD /* GeoMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3C40E657D271AEB23B568C /* GeoMathTests.swift */; };
+		D9484F04716AE6E38FCDBF79 /* LaiBaoAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB74FBB32E98DECA3E61CF3 /* LaiBaoAPIClientTests.swift */; };
+		0909295D736AB6ADB05BF859 /* PayloadBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8D1E40EF3CA38721AC461B /* PayloadBuilderTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		19EB119AF7E15AF5657B8536 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 290F2190E13F9B76FF4D0256 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 866733768280C62B0EBFFA8B;
+			remoteInfo = LaiBao;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A8A538FBD17B3858C8E09170 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		4F90F70B294C6728FFE6C97A /* LaiBaoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaiBaoApp.swift; sourceTree = "<group>"; };
+		A1C92F7341719D63CFBE46E4 /* AuthSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSecurity.swift; sourceTree = "<group>"; };
+		3273FE4A8E782FE9BC8DB4FE /* FormLinkParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormLinkParser.swift; sourceTree = "<group>"; };
+		2D96E8624666E5B3E84E352E /* GeoMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoMath.swift; sourceTree = "<group>"; };
+		6DE7600924B027753C9BAF1F /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
+		D81BD2C24E878821DE4A2309 /* LaiBaoAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaiBaoAPIClient.swift; sourceTree = "<group>"; };
+		21BAE65D7F5F8019905AE12B /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		41F71AD061B4C8E372435FD6 /* PayloadBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayloadBuilder.swift; sourceTree = "<group>"; };
+		1985892D18CFEDA0722CCD78 /* QRCodeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeRenderer.swift; sourceTree = "<group>"; };
+		3EF58EF670309ADCA874199E /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
+		5A16C927D1CC79CD726D3AEF /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
+		58F8233211393A440154FD65 /* AccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsView.swift; sourceTree = "<group>"; };
+		46E88782D2681A3D1A8BB7E7 /* AdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminConsoleView.swift; sourceTree = "<group>"; };
+		0CD9C150DEC96758265A7CD5 /* AuthGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGateView.swift; sourceTree = "<group>"; };
+		BBA008A9F8AD535F3192499D /* CheckinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckinView.swift; sourceTree = "<group>"; };
+		C6424AE287F22470112C23DD /* DynamicFieldRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicFieldRow.swift; sourceTree = "<group>"; };
+		3135BF74E8D2E62192343130 /* MyFormsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyFormsSheet.swift; sourceTree = "<group>"; };
+		BB6F0DE192D1F1E8A550CA3A /* GlassDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassDesignSystem.swift; sourceTree = "<group>"; };
+		75A2C293018645AD59FCE9D5 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		0FA238EA52B1513676B5F1A9 /* MapPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapPickerSheet.swift; sourceTree = "<group>"; };
+		0DBFF448F6A6DB76753B8385 /* POIsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = POIsView.swift; sourceTree = "<group>"; };
+		4DA98C9658A10ACDCCFEF393 /* RecordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordsView.swift; sourceTree = "<group>"; };
+		1FD1C7B83216B1B42628B554 /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
+		AB85E127DAC31CD5540F0C55 /* AuthSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSecurityTests.swift; sourceTree = "<group>"; };
+		014530C9609264AEFBD32853 /* FormLinkParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormLinkParserTests.swift; sourceTree = "<group>"; };
+		6F3C40E657D271AEB23B568C /* GeoMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoMathTests.swift; sourceTree = "<group>"; };
+		4EB74FBB32E98DECA3E61CF3 /* LaiBaoAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaiBaoAPIClientTests.swift; sourceTree = "<group>"; };
+		CC8D1E40EF3CA38721AC461B /* PayloadBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayloadBuilderTests.swift; sourceTree = "<group>"; };
+		0C9AA94759B4CAB69334E5F5 /* LaiBao.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LaiBao.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		934B2BB9BCE4DDE35972873F /* LaiBaoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LaiBaoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6E4CBEDD4A8509990AE7AB8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		15E4DE78B540939116F5DC26 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F0E9E558F229E07A3E71B235 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1C29D738CD54A75839873936 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3EE9F9076933511099ACBAA5 = {
+			isa = PBXGroup;
+			children = (
+				3825019AC7CA8AE3ABA00AAB /* Sources */,
+				1E0E2ACBED4C647CE1808F88 /* Resources */,
+				44607C552191C6E8931221F3 /* Tests */,
+				6690E49369351C95A32187CA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6690E49369351C95A32187CA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0C9AA94759B4CAB69334E5F5 /* LaiBao.app */,
+				934B2BB9BCE4DDE35972873F /* LaiBaoTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1E0E2ACBED4C647CE1808F88 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				15E4DE78B540939116F5DC26 /* Assets.xcassets */,
+				B6E4CBEDD4A8509990AE7AB8 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		3825019AC7CA8AE3ABA00AAB /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				29227344C61A2BD55673078F /* App */,
+				A459F831FE7712E446BAEEB9 /* Core */,
+				9C098CCC2D5977ECFE0C0667 /* Views */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		29227344C61A2BD55673078F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A8A538FBD17B3858C8E09170 /* AppState.swift */,
+				4F90F70B294C6728FFE6C97A /* LaiBaoApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A459F831FE7712E446BAEEB9 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				A1C92F7341719D63CFBE46E4 /* AuthSecurity.swift */,
+				3273FE4A8E782FE9BC8DB4FE /* FormLinkParser.swift */,
+				2D96E8624666E5B3E84E352E /* GeoMath.swift */,
+				6DE7600924B027753C9BAF1F /* JSONValue.swift */,
+				D81BD2C24E878821DE4A2309 /* LaiBaoAPIClient.swift */,
+				21BAE65D7F5F8019905AE12B /* Models.swift */,
+				41F71AD061B4C8E372435FD6 /* PayloadBuilder.swift */,
+				1985892D18CFEDA0722CCD78 /* QRCodeRenderer.swift */,
+				3EF58EF670309ADCA874199E /* ReminderScheduler.swift */,
+				5A16C927D1CC79CD726D3AEF /* WorkspaceStore.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		9C098CCC2D5977ECFE0C0667 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				15C3C2FFF7E74862D6C705A2 /* Accounts */,
+				BAFFA0DB37BEF60F6234D4AA /* Admin */,
+				C74EE16CFE709E81969BF826 /* Auth */,
+				5945D5A19C3B03BA45BFFD30 /* Checkin */,
+				A01E36CEF4060C60348F9683 /* LiquidGlass */,
+				68DCD26B5850396D2C395365 /* Main */,
+				32B0346EA01A6C4CBE858EAB /* Map */,
+				C0AD3E3A273CC757104F5560 /* POIs */,
+				4876E1436074F1C04D87558F /* Records */,
+				73BBC6BC483142CE941998AE /* Reminders */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		15C3C2FFF7E74862D6C705A2 /* Accounts */ = {
+			isa = PBXGroup;
+			children = (
+				58F8233211393A440154FD65 /* AccountsView.swift */,
+			);
+			path = Accounts;
+			sourceTree = "<group>";
+		};
+		BAFFA0DB37BEF60F6234D4AA /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				46E88782D2681A3D1A8BB7E7 /* AdminConsoleView.swift */,
+			);
+			path = Admin;
+			sourceTree = "<group>";
+		};
+		C74EE16CFE709E81969BF826 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				0CD9C150DEC96758265A7CD5 /* AuthGateView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		5945D5A19C3B03BA45BFFD30 /* Checkin */ = {
+			isa = PBXGroup;
+			children = (
+				BBA008A9F8AD535F3192499D /* CheckinView.swift */,
+				C6424AE287F22470112C23DD /* DynamicFieldRow.swift */,
+				3135BF74E8D2E62192343130 /* MyFormsSheet.swift */,
+			);
+			path = Checkin;
+			sourceTree = "<group>";
+		};
+		A01E36CEF4060C60348F9683 /* LiquidGlass */ = {
+			isa = PBXGroup;
+			children = (
+				BB6F0DE192D1F1E8A550CA3A /* GlassDesignSystem.swift */,
+			);
+			path = LiquidGlass;
+			sourceTree = "<group>";
+		};
+		68DCD26B5850396D2C395365 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				75A2C293018645AD59FCE9D5 /* RootTabView.swift */,
+			);
+			path = Main;
+			sourceTree = "<group>";
+		};
+		32B0346EA01A6C4CBE858EAB /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				0FA238EA52B1513676B5F1A9 /* MapPickerSheet.swift */,
+			);
+			path = Map;
+			sourceTree = "<group>";
+		};
+		C0AD3E3A273CC757104F5560 /* POIs */ = {
+			isa = PBXGroup;
+			children = (
+				0DBFF448F6A6DB76753B8385 /* POIsView.swift */,
+			);
+			path = POIs;
+			sourceTree = "<group>";
+		};
+		4876E1436074F1C04D87558F /* Records */ = {
+			isa = PBXGroup;
+			children = (
+				4DA98C9658A10ACDCCFEF393 /* RecordsView.swift */,
+			);
+			path = Records;
+			sourceTree = "<group>";
+		};
+		73BBC6BC483142CE941998AE /* Reminders */ = {
+			isa = PBXGroup;
+			children = (
+				1FD1C7B83216B1B42628B554 /* RemindersView.swift */,
+			);
+			path = Reminders;
+			sourceTree = "<group>";
+		};
+		44607C552191C6E8931221F3 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				8B3D6520E67D35DDADF0DF60 /* LaiBaoTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		8B3D6520E67D35DDADF0DF60 /* LaiBaoTests */ = {
+			isa = PBXGroup;
+			children = (
+				AB85E127DAC31CD5540F0C55 /* AuthSecurityTests.swift */,
+				014530C9609264AEFBD32853 /* FormLinkParserTests.swift */,
+				6F3C40E657D271AEB23B568C /* GeoMathTests.swift */,
+				4EB74FBB32E98DECA3E61CF3 /* LaiBaoAPIClientTests.swift */,
+				CC8D1E40EF3CA38721AC461B /* PayloadBuilderTests.swift */,
+			);
+			path = LaiBaoTests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		866733768280C62B0EBFFA8B /* LaiBao */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2570681D779E6EA9D77A7452 /* Build configuration list for PBXNativeTarget "LaiBao" */;
+			buildPhases = (
+				73531381A40F287C83CF0954 /* Sources */,
+				F0E9E558F229E07A3E71B235 /* Frameworks */,
+				649675FBC70B4196624AB0E1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LaiBao;
+			productName = LaiBao;
+			productReference = 0C9AA94759B4CAB69334E5F5 /* LaiBao.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C63D0FF9B3442039355C7E02 /* LaiBaoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 590E2C239046B22680E3EC3F /* Build configuration list for PBXNativeTarget "LaiBaoTests" */;
+			buildPhases = (
+				9494F246FBDB4BD53CCA8118 /* Sources */,
+				1C29D738CD54A75839873936 /* Frameworks */,
+				AAD4007DCA19E3938AC44A95 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9D0925DE7903177686869ADA /* PBXTargetDependency */,
+			);
+			name = LaiBaoTests;
+			productName = LaiBaoTests;
+			productReference = 934B2BB9BCE4DDE35972873F /* LaiBaoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		290F2190E13F9B76FF4D0256 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					866733768280C62B0EBFFA8B = {
+						CreatedOnToolsVersion = 26.0;
+						ProvisioningStyle = Manual;
+					};
+					C63D0FF9B3442039355C7E02 = {
+						CreatedOnToolsVersion = 26.0;
+						ProvisioningStyle = Manual;
+						TestTargetID = 866733768280C62B0EBFFA8B;
+					};
+				};
+			};
+			buildConfigurationList = 1198E2A0044700B8A0BD30B9 /* Build configuration list for PBXProject "LaiBao" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = 3EE9F9076933511099ACBAA5;
+			productRefGroup = 6690E49369351C95A32187CA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				866733768280C62B0EBFFA8B /* LaiBao */,
+				C63D0FF9B3442039355C7E02 /* LaiBaoTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		649675FBC70B4196624AB0E1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DFE604857B0AD5121994605D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAD4007DCA19E3938AC44A95 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		73531381A40F287C83CF0954 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D81D06482DE8C27DCA106954 /* AppState.swift in Sources */,
+				83F1E2F1D3E097AC84289BC4 /* LaiBaoApp.swift in Sources */,
+				54DF4EAF17328A996D7D1DC1 /* AuthSecurity.swift in Sources */,
+				0CAF66C601CC3B7C34C91F05 /* FormLinkParser.swift in Sources */,
+				9772F855C1456EA5D6FAD976 /* GeoMath.swift in Sources */,
+				C20AB2D603CE43259FCA932C /* JSONValue.swift in Sources */,
+				D3D6D8FCDE43220E9D8B73EA /* LaiBaoAPIClient.swift in Sources */,
+				0CDBD888877748DE64B68B27 /* Models.swift in Sources */,
+				EDC973CF0F8F3BFCAACDFADC /* PayloadBuilder.swift in Sources */,
+				E07E4A49E04973C8540C9CCA /* QRCodeRenderer.swift in Sources */,
+				CA2AB46CD4F8D8ED448F0B7A /* ReminderScheduler.swift in Sources */,
+				35E8AEB9544749DDE84D77DB /* WorkspaceStore.swift in Sources */,
+				23F815B0584C64C371C8521B /* AccountsView.swift in Sources */,
+				8ED3818CE81636184D278778 /* AdminConsoleView.swift in Sources */,
+				801C9B7246BABD4DA17EB3A7 /* AuthGateView.swift in Sources */,
+				B9B6F317AAC30AB95F6A6FC3 /* CheckinView.swift in Sources */,
+				BAF7A6402818F07775C8B51C /* DynamicFieldRow.swift in Sources */,
+				8488A72369E58E94D33CA8BC /* MyFormsSheet.swift in Sources */,
+				3166B9445FF53CA0B4AE60F1 /* GlassDesignSystem.swift in Sources */,
+				AF425A724882F5995F0EA43F /* RootTabView.swift in Sources */,
+				B0DC9CCC922E91689704D72A /* MapPickerSheet.swift in Sources */,
+				049851B5A6B6E94CE2AF5177 /* POIsView.swift in Sources */,
+				FDB6C64916A01EA1DB6348FA /* RecordsView.swift in Sources */,
+				E82950D9A86507BF493E564F /* RemindersView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9494F246FBDB4BD53CCA8118 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E1257A6E2634D4A87BBC01A7 /* AuthSecurityTests.swift in Sources */,
+				6892650087D2681EB4EB5E37 /* FormLinkParserTests.swift in Sources */,
+				BC3AB4DC400F0A95E4FFC3BD /* GeoMathTests.swift in Sources */,
+				D9484F04716AE6E38FCDBF79 /* LaiBaoAPIClientTests.swift in Sources */,
+				0909295D736AB6ADB05BF859 /* PayloadBuilderTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		9D0925DE7903177686869ADA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 866733768280C62B0EBFFA8B /* LaiBao */;
+			targetProxy = 19EB119AF7E15AF5657B8536 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		6E2148BEDB809B477A335E8A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AD_HOC_CODE_SIGNING_ALLOWED = NO;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		B36BFEC6A3F53E22EE065934 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AD_HOC_CODE_SIGNING_ALLOWED = NO;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		4812A1F4AB7BE650E420381A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AD_HOC_CODE_SIGNING_ALLOWED = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.laibao.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		81A4D26B3B5C39557B02A8D5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AD_HOC_CODE_SIGNING_ALLOWED = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.laibao.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		304E37053CC25530A5B2DC37 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AD_HOC_CODE_SIGNING_ALLOWED = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.laibao.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LaiBao.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LaiBao";
+			};
+			name = Debug;
+		};
+		14CCF33CA1B9CFBE43558DB3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				AD_HOC_CODE_SIGNING_ALLOWED = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.laibao.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LaiBao.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LaiBao";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1198E2A0044700B8A0BD30B9 /* Build configuration list for PBXProject "LaiBao" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6E2148BEDB809B477A335E8A /* Debug */,
+				B36BFEC6A3F53E22EE065934 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2570681D779E6EA9D77A7452 /* Build configuration list for PBXNativeTarget "LaiBao" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4812A1F4AB7BE650E420381A /* Debug */,
+				81A4D26B3B5C39557B02A8D5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		590E2C239046B22680E3EC3F /* Build configuration list for PBXNativeTarget "LaiBaoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				304E37053CC25530A5B2DC37 /* Debug */,
+				14CCF33CA1B9CFBE43558DB3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 290F2190E13F9B76FF4D0256 /* Project object */;
+}

@@ -1,0 +1,110 @@
+name: Build Unsigned iOS IPA (LaiBao)
+
+on:
+  workflow_dispatch:
+    inputs:
+      regenerate_project:
+        description: "Regenerate LaiBao.xcodeproj with XcodeGen before building"
+        required: false
+        type: boolean
+        default: false
+      run_tests:
+        description: "Run LaiBaoTests on iOS Simulator before packaging"
+        required: false
+        type: boolean
+        default: true
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: laibao-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-unsigned-ipa:
+    name: Test & Build Unsigned IPA
+    # macos-26 ships Xcode 26 / iOS 26 SDK (switch to macos-latest once macos-latest tracks Xcode 26–27)
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Inspect Xcode toolchain & SDKs
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Optional XcodeGen project regeneration
+        if: ${{ inputs.regenerate_project == true }}
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+
+      - name: Run unit tests on iOS Simulator
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_tests != false }}
+        run: |
+          SIM_UDID="$(xcrun simctl list devices available iPhone --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          devices = []
+          for runtime, items in sorted(data.get("devices", {}).items(), reverse=True):
+              if "iOS" not in runtime:
+                  continue
+              for d in items:
+                  if d.get("isAvailable"):
+                      devices.append(d["udid"])
+          print(devices[0] if devices else "")
+          ')"
+          if [[ -n "${SIM_UDID}" ]]; then
+            echo "Using iOS Simulator UDID: ${SIM_UDID}"
+            DESTINATION="platform=iOS Simulator,id=${SIM_UDID}"
+          else
+            DESTINATION="platform=iOS Simulator,name=iPhone 16"
+          fi
+          # Apple Silicon iOS Simulator requires ad-hoc signing ("-") to launch the test host
+          # (no Apple Developer account required); the Release IPA step below stays 100% unsigned.
+          xcodebuild test \
+            -project LaiBao.xcodeproj \
+            -scheme LaiBao \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "${DESTINATION}" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=""
+
+      - name: Build unsigned IPA
+        run: bash scripts/build-unsigned-ipa.sh
+
+      - name: Verify unsigned IPA integrity
+        run: |
+          IPA_PATH="dist/LaiBao-unsigned.ipa"
+          test -f "${IPA_PATH}"
+          unzip -l "${IPA_PATH}" | grep -q "Payload/LaiBao.app/Info.plist"
+          unzip -l "${IPA_PATH}" | grep -q "Payload/LaiBao.app/LaiBao"
+          if unzip -l "${IPA_PATH}" | grep -E "(_CodeSignature|embedded\.mobileprovision|SC_Info)"; then
+            echo "ERROR: Unexpected signing artifacts found inside unsigned IPA!" >&2
+            exit 1
+          fi
+          echo "Unsigned IPA verification passed."
+
+      - name: Upload LaiBao-unsigned.ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaiBao-unsigned-ipa
+          path: dist/LaiBao-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
