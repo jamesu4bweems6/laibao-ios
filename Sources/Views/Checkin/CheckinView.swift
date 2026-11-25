@@ -121,6 +121,7 @@ struct CheckinView: View {
                                     .font(.subheadline.weight(.semibold))
                                     .lineLimit(1)
                             }
+                            .foregroundStyle(Color.white)
                             .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glassProminent)
@@ -217,16 +218,15 @@ struct CheckinView: View {
                 HStack(spacing: 6) {
                     if isLoadingForm {
                         ProgressView()
+                            .tint(.white)
                             .controlSize(.small)
                     } else {
                         Image(systemName: "arrow.down.doc.fill")
                     }
                     Text(isLoadingForm ? "正在解析加载..." : "解析并加载表单")
-                        .font(.subheadline.weight(.semibold))
                 }
-                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(PrimaryActionButtonStyle(fullWidth: true))
             .disabled(isLoadingForm || formInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             if let parsed = parsedLink {
@@ -309,20 +309,17 @@ struct CheckinView: View {
             }
         } else {
             Section {
-                ContentUnavailableView {
-                    Label("选择要填报的接龙", systemImage: "doc.text.magnifyingglass")
-                } description: {
-                    Text("粘贴分享链接，或从「我的接龙」列表中挑选参与的活动。")
-                } actions: {
-                    Button {
-                        showMyFormsSheet = true
-                    } label: {
-                        Label("浏览我的接龙", systemImage: "tray.full")
-                    }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.small)
+                EmptyStateSectionView(
+                    title: "选择要填报的接龙",
+                    systemImage: "doc.text.magnifyingglass",
+                    description: "粘贴分享链接，或从「我的接龙」列表中挑选参与的活动。",
+                    actionTitle: "浏览我的接龙",
+                    actionSystemImage: "tray.full"
+                ) {
+                    showMyFormsSheet = true
                 }
                 .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             }
         }
     }

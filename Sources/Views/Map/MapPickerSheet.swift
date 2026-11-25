@@ -672,6 +672,7 @@ struct MapPickerSheet: View {
                     } label: {
                         Text(confirmButtonTitle)
                             .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.white)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
                     }

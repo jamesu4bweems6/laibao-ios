@@ -80,25 +80,28 @@ struct RemindersView: View {
                     )
                     Spacer(minLength: 6)
                     if authStatus == .notDetermined {
-                        Button("开启通知") {
+                        Button {
                             requestNotificationPermission()
+                        } label: {
+                            Text("开启通知")
                         }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.small)
+                        .buttonStyle(PrimaryActionButtonStyle(compact: true))
                     } else if authStatus == .denied {
-                        Button("前往设置") {
+                        Button {
                             if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                                 openURL(settingsURL)
                             }
+                        } label: {
+                            Text("前往设置")
                         }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.small)
+                        .buttonStyle(PrimaryActionButtonStyle(compact: true))
                     } else {
-                        Button("同步通知") {
+                        Button {
                             syncAllNotifications()
+                        } label: {
+                            Text("同步通知")
                         }
-                        .buttonStyle(.glass)
-                        .controlSize(.small)
+                        .buttonStyle(SecondaryActionButtonStyle(compact: true))
                     }
                 }
 
@@ -120,20 +123,17 @@ struct RemindersView: View {
     private var plansSection: some View {
         Section("打卡提醒计划（\(appState.reminders.count)）") {
             if appState.reminders.isEmpty {
-                ContentUnavailableView {
-                    Label("暂无提醒计划", systemImage: "bell.slash")
-                } description: {
-                    Text("创建多时间点、按星期循环的本地打卡提醒，到点一键直达填报。")
-                } actions: {
-                    Button {
-                        isCreatingNew = true
-                    } label: {
-                        Label("新建提醒计划", systemImage: "plus")
-                    }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.small)
+                EmptyStateSectionView(
+                    title: "暂无提醒计划",
+                    systemImage: "bell.slash",
+                    description: "创建多时间点、按星期循环的本地打卡提醒，到点一键直达填报。",
+                    actionTitle: "新建提醒计划",
+                    actionSystemImage: "plus"
+                ) {
+                    isCreatingNew = true
                 }
                 .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             } else {
                 ForEach(appState.reminders) { plan in
                     reminderRow(plan)
@@ -223,6 +223,7 @@ struct RemindersView: View {
                     HStack(spacing: 5) {
                         if runningPlanID == plan.id {
                             ProgressView()
+                                .tint(.white)
                                 .controlSize(.small)
                         } else {
                             Image(systemName: "play.fill")
@@ -231,32 +232,33 @@ struct RemindersView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                     }
-                    .font(.caption.weight(.semibold))
-                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
-                .controlSize(.small)
+                .buttonStyle(PrimaryActionButtonStyle(compact: true, fullWidth: true))
                 .disabled(runningPlanID != nil)
 
                 Button {
                     appState.openFormInCheckin(formID: plan.formID)
                 } label: {
-                    Label("去填报", systemImage: "arrow.up.forward")
-                        .font(.caption.weight(.medium))
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.forward")
+                            .foregroundStyle(Color.accentColor)
+                        Text("去填报")
+                            .lineLimit(1)
+                    }
                 }
-                .buttonStyle(.glass)
-                .controlSize(.small)
+                .buttonStyle(SecondaryActionButtonStyle(compact: true))
 
                 Button {
                     editingPlan = plan
                 } label: {
-                    Label("编辑", systemImage: "pencil")
-                        .font(.caption.weight(.medium))
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(Color.accentColor)
+                        Text("编辑")
+                            .lineLimit(1)
+                    }
                 }
-                .buttonStyle(.glass)
-                .controlSize(.small)
+                .buttonStyle(SecondaryActionButtonStyle(compact: true))
             }
         }
         .padding(.vertical, 6)

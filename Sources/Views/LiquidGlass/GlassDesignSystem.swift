@@ -409,9 +409,129 @@ struct GlassFloatingActionBar<Content: View>: View {
     }
 }
 
+// MARK: - Content-Layer Action Button Styles & Empty State
+
+/// High-contrast prominent pill button designed for content-layer `List` / `Form` rows
+/// and empty-state CTAs. Explicitly locks icon and text to crisp white so SwiftUI `List`
+/// tinting never renders blue icons/text on a blue prominent background.
+struct PrimaryActionButtonStyle: ButtonStyle {
+    var tint: Color = .accentColor
+    var compact: Bool = false
+    var fullWidth: Bool = false
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+            .foregroundStyle(Color.white.opacity(isEnabled ? 1.0 : 0.80))
+            .tint(Color.white)
+            .padding(.horizontal, compact ? 14 : 18)
+            .padding(.vertical, compact ? 9 : 11)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .background(
+                Capsule()
+                    .fill(isEnabled ? tint : tint.opacity(0.38))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(isEnabled ? 0.22 : 0.10), lineWidth: 0.5)
+            )
+            .opacity(configuration.isPressed ? 0.84 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+            .contentShape(Capsule())
+    }
+}
+
+/// Matching secondary pill button for content-layer `List` / `Form` rows so paired
+/// primary/secondary buttons align seamlessly in height and contrast.
+struct SecondaryActionButtonStyle: ButtonStyle {
+    var compact: Bool = false
+    var fullWidth: Bool = false
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(compact ? .caption.weight(.medium) : .subheadline.weight(.medium))
+            .foregroundStyle(Color.primary.opacity(isEnabled ? 1.0 : 0.45))
+            .tint(Color.accentColor)
+            .padding(.horizontal, compact ? 13 : 16)
+            .padding(.vertical, compact ? 9 : 11)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .background(
+                Capsule()
+                    .fill(Color(.secondarySystemFill).opacity(isEnabled ? 0.9 : 0.45))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            )
+            .opacity(configuration.isPressed ? 0.78 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+            .contentShape(Capsule())
+    }
+}
+
+/// Centered empty-state view for `List` / `Form` sections with guaranteed icon/text contrast
+/// and an optional compact primary pill action button.
+struct EmptyStateSectionView: View {
+    let title: String
+    let systemImage: String
+    let description: String
+    var actionTitle: String? = nil
+    var actionSystemImage: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 58, height: 58)
+                .background(Color.accentColor.opacity(0.12), in: Circle())
+
+            VStack(spacing: 5) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let actionTitle, let action {
+                Button(action: action) {
+                    HStack(spacing: 6) {
+                        if let actionSystemImage {
+                            Image(systemName: actionSystemImage)
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        Text(actionTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                }
+                .buttonStyle(PrimaryActionButtonStyle(compact: false))
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 22)
+    }
+}
+
 // MARK: - GlassSegmentedControl
 
-/// Smooth morphing segmented selector backed by `GlassEffectContainer` + `.glassEffectID`.
+/// Native iOS 26 Liquid Glass segmented control backed by `Picker(.segmented)` so the
+/// optical glass lens glides smoothly on tap or drag without veiling selected text.
 struct GlassSegmentedControl<Selection: Hashable & Sendable>: View {
     let items: [Selection]
     @Binding var selection: Selection
@@ -419,60 +539,21 @@ struct GlassSegmentedControl<Selection: Hashable & Sendable>: View {
     var systemImage: ((Selection) -> String?)? = nil
     var tint: Color = .accentColor
 
-    @Namespace private var glassNamespace
-    @Environment(\.appearsActive) private var appearsActive
-
     var body: some View {
-        GlassEffectContainer(spacing: 4) {
-            HStack(spacing: 3) {
-                ForEach(items, id: \.self) { item in
-                    let isSelected = selection == item
-                    Button {
-                        withAnimation(.snappy(duration: 0.26, extraBounce: 0.06)) {
-                            selection = item
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            if let icon = systemImage?(item) {
-                                Image(systemName: icon)
-                                    .font(.caption.weight(.semibold))
-                            }
-                            Text(title(item))
-                                .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.78)
-                        }
-                        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .background {
-                            if isSelected {
-                                Capsule()
-                                    .fill(.clear)
-                                    .glassEffect(
-                                        .regular.tint(tint.opacity(0.26)).interactive(),
-                                        in: .capsule
-                                    )
-                                    .glassEffectID("selectedSegment", in: glassNamespace)
-                            }
-                        }
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+        Picker("", selection: $selection) {
+            ForEach(items, id: \.self) { item in
+                if let icon = systemImage?(item) {
+                    Label(title(item), systemImage: icon)
+                        .tag(item)
+                } else {
+                    Text(title(item))
+                        .tag(item)
                 }
             }
-            .padding(3)
-            .background(Color(.tertiarySystemFill).opacity(0.68), in: Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
-            )
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
         .sensoryFeedback(.selection, trigger: selection)
-        .opacity(appearsActive ? 1.0 : 0.78)
-        .animation(.easeInOut(duration: 0.2), value: appearsActive)
     }
 }
 

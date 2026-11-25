@@ -196,11 +196,12 @@ struct DynamicFieldRow: View {
                     Button {
                         onOpenMapPicker(field)
                     } label: {
-                        Label("地图选点", systemImage: "map.fill")
-                            .font(.subheadline.weight(.semibold))
+                        HStack(spacing: 5) {
+                            Image(systemName: "map.fill")
+                            Text("地图选点")
+                        }
                     }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.small)
+                    .buttonStyle(PrimaryActionButtonStyle(compact: true))
 
                     if let spec, spec.locationType == .specified, let targetAnchor = preferredAnchor(for: spec) {
                         Button {
@@ -209,11 +210,13 @@ struct DynamicFieldRow: View {
                                 fieldValues.removeValue(forKey: field.cid)
                             }
                         } label: {
-                            Label("填入围栏中心", systemImage: "scope")
-                                .font(.subheadline)
+                            HStack(spacing: 5) {
+                                Image(systemName: "scope")
+                                    .foregroundStyle(Color.accentColor)
+                                Text("填入围栏中心")
+                            }
                         }
-                        .buttonStyle(.glass)
-                        .controlSize(.small)
+                        .buttonStyle(SecondaryActionButtonStyle(compact: true))
                     }
 
                     if !savedPOIs.isEmpty {
@@ -225,11 +228,18 @@ struct DynamicFieldRow: View {
                                 }
                             }
                         } label: {
-                            Label("选择 POI", systemImage: "mappin.and.ellipse")
-                                .font(.subheadline)
+                            HStack(spacing: 5) {
+                                Image(systemName: "mappin.and.ellipse")
+                                    .foregroundStyle(Color.accentColor)
+                                Text("选择 POI")
+                            }
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.primary)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 9)
+                            .background(Color(.secondarySystemFill).opacity(0.9), in: Capsule())
+                            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
                         }
-                        .buttonStyle(.glass)
-                        .controlSize(.small)
                     }
                 }
 

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Native iOS 26 / iOS 27 `TabView` root shell with `.sidebarAdaptable` and
-/// `.tabBarMinimizeBehavior(.onScrollDown)` so the floating Liquid Glass tab bar
-/// refracts cleanly above system content layers.
+/// `.tabBarMinimizeBehavior(.never)` so the floating Liquid Glass tab bar
+/// remains stable and accessible while scrolling.
 struct RootTabView: View {
     @Environment(AppState.self) private var appState
 
@@ -32,7 +32,7 @@ struct RootTabView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabBarMinimizeBehavior(.never)
         .overlay(alignment: .top) {
             if let message = appState.toastMessage {
                 GlassToastBanner(

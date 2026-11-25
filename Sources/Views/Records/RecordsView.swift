@@ -152,16 +152,15 @@ struct RecordsView: View {
                 HStack(spacing: 6) {
                     if isLoading {
                         ProgressView()
+                            .tint(.white)
                             .controlSize(.small)
                     } else {
                         Image(systemName: "magnifyingglass")
                     }
                     Text(isLoading ? "正在查询..." : "查询记录")
-                        .font(.subheadline.weight(.semibold))
                 }
-                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(PrimaryActionButtonStyle(fullWidth: true))
             .disabled(isLoading || formInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             if !resolvedFormID.isEmpty {
@@ -240,27 +239,18 @@ struct RecordsView: View {
                     Spacer()
                 }
             } else if records.isEmpty {
-                ContentUnavailableView {
-                    Label(
-                        resolvedFormID.isEmpty ? "输入表单 ID 开始查询" : "暂无提交记录",
-                        systemImage: "list.bullet.clipboard"
-                    )
-                } description: {
-                    Text(resolvedFormID.isEmpty
-                         ? "可粘贴分享链接、短链，或从「我的接龙」选择要查看的活动。"
-                         : "当前模式（\(mode.title)）未返回任何记录。")
-                } actions: {
-                    if resolvedFormID.isEmpty {
-                        Button {
-                            showMyFormsSheet = true
-                        } label: {
-                            Label("浏览我的接龙", systemImage: "tray.full")
-                        }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.small)
-                    }
-                }
+                EmptyStateSectionView(
+                    title: resolvedFormID.isEmpty ? "输入表单 ID 开始查询" : "暂无提交记录",
+                    systemImage: "list.bullet.clipboard",
+                    description: resolvedFormID.isEmpty
+                        ? "可粘贴分享链接、短链，或从「我的接龙」选择要查看的活动。"
+                        : "当前模式（\(mode.title)）未返回任何记录。",
+                    actionTitle: resolvedFormID.isEmpty ? "浏览我的接龙" : nil,
+                    actionSystemImage: resolvedFormID.isEmpty ? "tray.full" : nil,
+                    action: resolvedFormID.isEmpty ? { showMyFormsSheet = true } : nil
+                )
                 .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             } else {
                 ForEach(records) { record in
                     recordCard(record)

@@ -205,20 +205,17 @@ struct AccountsView: View {
     private var savedAccountsSection: some View {
         Section {
             if appState.accounts.isEmpty {
-                ContentUnavailableView {
-                    Label("尚未添加来宝账号", systemImage: "person.crop.circle.badge.plus")
-                } description: {
-                    Text("请使用上方扫码、粘贴令牌或微信 Code 完成登录。")
-                } actions: {
-                    Button {
-                        showQRLogin = true
-                    } label: {
-                        Label("立即扫码登录", systemImage: "qrcode.viewfinder")
-                    }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.small)
+                EmptyStateSectionView(
+                    title: "尚未添加来宝账号",
+                    systemImage: "person.crop.circle.badge.plus",
+                    description: "请使用上方扫码、粘贴令牌或微信 Code 完成登录。",
+                    actionTitle: "立即扫码登录",
+                    actionSystemImage: "qrcode.viewfinder"
+                ) {
+                    showQRLogin = true
                 }
                 .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             } else {
                 ForEach(appState.accounts) { account in
                     accountRow(account)
@@ -496,12 +493,12 @@ struct AccountsView: View {
                 Button {
                     saveProtocolSettings()
                 } label: {
-                    Label("保存参数", systemImage: "checkmark")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark")
+                        Text("保存参数")
+                    }
                 }
-                .buttonStyle(.glassProminent)
-                .controlSize(.small)
+                .buttonStyle(PrimaryActionButtonStyle(compact: true, fullWidth: true))
 
                 Button {
                     verDraft = LaiBaoAPIClient.defaultVer
@@ -509,10 +506,8 @@ struct AccountsView: View {
                     saveProtocolSettings()
                 } label: {
                     Text("恢复默认")
-                        .font(.subheadline)
                 }
-                .buttonStyle(.glass)
-                .controlSize(.small)
+                .buttonStyle(SecondaryActionButtonStyle(compact: true))
             }
             .padding(.vertical, 2)
         } header: {
@@ -723,11 +718,12 @@ private struct QRLoginSheet: View {
                             Button {
                                 startQRFlow()
                             } label: {
-                                Label(session == nil ? "生成二维码" : "刷新", systemImage: "arrow.clockwise")
-                                    .font(.subheadline.weight(.semibold))
+                                HStack(spacing: 5) {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text(session == nil ? "生成二维码" : "刷新")
+                                }
                             }
-                            .buttonStyle(.glassProminent)
-                            .controlSize(.small)
+                            .buttonStyle(PrimaryActionButtonStyle(compact: true))
                             .disabled(isLoadingQR)
 
                             if let url = session?.url, !url.isEmpty {
@@ -735,18 +731,27 @@ private struct QRLoginSheet: View {
                                     UIPasteboard.general.string = url
                                     appState.showToast("已复制二维码链接，可发至微信长按识别")
                                 } label: {
-                                    Label("复制链接", systemImage: "doc.on.doc")
-                                        .font(.subheadline)
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "doc.on.doc")
+                                            .foregroundStyle(Color.accentColor)
+                                        Text("复制链接")
+                                    }
                                 }
-                                .buttonStyle(.glass)
-                                .controlSize(.small)
+                                .buttonStyle(SecondaryActionButtonStyle(compact: true))
 
                                 ShareLink(item: url) {
-                                    Label("分享", systemImage: "square.and.arrow.up")
-                                        .font(.subheadline)
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "square.and.arrow.up")
+                                            .foregroundStyle(Color.accentColor)
+                                        Text("分享")
+                                    }
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(Color.primary)
+                                    .padding(.horizontal, 13)
+                                    .padding(.vertical, 9)
+                                    .background(Color(.secondarySystemFill).opacity(0.9), in: Capsule())
+                                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
                                 }
-                                .buttonStyle(.glass)
-                                .controlSize(.small)
                             }
                         }
                     }

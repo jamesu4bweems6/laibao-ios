@@ -94,27 +94,29 @@ struct POIsView: View {
 
     private var quickAddSection: some View {
         Section {
-            GlassEffectContainer(spacing: 10) {
-                HStack(spacing: 10) {
-                    Button {
-                        showMapAddPOI = true
-                    } label: {
-                        Label("地图选点新增", systemImage: "map.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.glassProminent)
-
-                    Button {
-                        showManualAddPOI = true
-                    } label: {
-                        Label("手动录入", systemImage: "plus.circle")
-                            .font(.subheadline.weight(.medium))
+            HStack(spacing: 10) {
+                Button {
+                    showMapAddPOI = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "map.fill")
+                        Text("地图选点新增")
                             .lineLimit(1)
                     }
-                    .buttonStyle(.glass)
                 }
+                .buttonStyle(PrimaryActionButtonStyle(fullWidth: true))
+
+                Button {
+                    showManualAddPOI = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.circle")
+                            .foregroundStyle(Color.accentColor)
+                        Text("手动录入")
+                            .lineLimit(1)
+                    }
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
@@ -124,20 +126,17 @@ struct POIsView: View {
     private var poiPoolSection: some View {
         Section("已保存 POI 点位池（\(appState.pois.count)）") {
             if appState.pois.isEmpty {
-                ContentUnavailableView {
-                    Label("点位池为空", systemImage: "mappin.slash")
-                } description: {
-                    Text("保存常用打卡点位后，可在动态填报与提醒计划中一键选用或随机抽取。")
-                } actions: {
-                    Button {
-                        showMapAddPOI = true
-                    } label: {
-                        Label("地图选点新增", systemImage: "map.fill")
-                    }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.small)
+                EmptyStateSectionView(
+                    title: "点位池为空",
+                    systemImage: "mappin.slash",
+                    description: "保存常用打卡点位后，可在动态填报与提醒计划中一键选用或随机抽取。",
+                    actionTitle: "地图选点新增",
+                    actionSystemImage: "map.fill"
+                ) {
+                    showMapAddPOI = true
                 }
                 .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             } else {
                 ForEach(appState.pois) { poi in
                     Button {
