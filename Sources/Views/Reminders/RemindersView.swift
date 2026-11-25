@@ -1,12 +1,16 @@
 import SwiftUI
+import UIKit
 import UserNotifications
 
 /// Local scheduled check-in reminder plans + `UNUserNotificationCenter` calendar trigger sync
 /// + one-tap immediate execution + sanitized run log history.
 struct RemindersView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var authStatus: UNAuthorizationStatus = .notDetermined
+    @State private var showSandboxDetail: Bool = false
     @State private var editingPlan: ReminderPlan?
     @State private var isCreatingNew: Bool = false
     @State private var runningPlanID: String?
@@ -32,6 +36,13 @@ struct RemindersView: View {
             }
             .task {
                 await refreshNotificationStatus()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    Task {
+                        await refreshNotificationStatus()
+                    }
+                }
             }
             .sheet(isPresented: $isCreatingNew) {
                 ReminderEditorSheet(existingPlan: nil) { saved in
@@ -60,22 +71,30 @@ struct RemindersView: View {
 
     private var sandboxNoticeSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    GlassStatusPill(
+                    StatusBadge(
                         title: notificationStatusTitle,
                         systemImage: notificationStatusIcon,
                         tint: notificationStatusTint
                     )
-                    Spacer()
+                    Spacer(minLength: 6)
                     if authStatus == .notDetermined {
-                        Button("开启通知权限") {
+                        Button("开启通知") {
                             requestNotificationPermission()
                         }
                         .buttonStyle(.glassProminent)
                         .controlSize(.small)
+                    } else if authStatus == .denied {
+                        Button("前往设置") {
+                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                openURL(settingsURL)
+                            }
+                        }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.small)
                     } else {
-                        Button("重新同步通知") {
+                        Button("同步通知") {
                             syncAllNotifications()
                         }
                         .buttonStyle(.glass)
@@ -83,24 +102,37 @@ struct RemindersView: View {
                     }
                 }
 
-                Text("受 iOS 沙盒机制限制，定时计划采用本地日历通知（UNUserNotificationCenter）准点推送提醒，轻点通知可直接打开对应表单一键打卡；后台应用刷新（BGAppRefreshTask）由系统按电量与习惯动态调度，不保证准点静默执行。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                DisclosureGroup("iOS 提醒机制说明", isExpanded: $showSandboxDetail) {
+                    Text("受 iOS 沙盒限制，定时计划通过系统本地日历通知（UNUserNotificationCenter）准点推送提醒，轻点通知可直达对应表单一键打卡；后台应用刷新（BGAppRefreshTask）由系统按电量与习惯动态调度，不保证准点静默提交。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
         } header: {
-            Text("iOS 本地提醒与后台说明")
+            Text("通知权限与同步")
         }
     }
 
     private var plansSection: some View {
         Section("打卡提醒计划（\(appState.reminders.count)）") {
             if appState.reminders.isEmpty {
-                ContentUnavailableView(
-                    "暂无提醒计划",
-                    systemImage: "bell.slash",
-                    description: Text("点击右上角「+」创建多时间点 / 星期循环打卡提醒。")
-                )
+                ContentUnavailableView {
+                    Label("暂无提醒计划", systemImage: "bell.slash")
+                } description: {
+                    Text("创建多时间点、按星期循环的本地打卡提醒，到点一键直达填报。")
+                } actions: {
+                    Button {
+                        isCreatingNew = true
+                    } label: {
+                        Label("新建提醒计划", systemImage: "plus")
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.small)
+                }
                 .listRowBackground(Color.clear)
             } else {
                 ForEach(appState.reminders) { plan in
@@ -111,16 +143,19 @@ struct RemindersView: View {
     }
 
     private func reminderRow(_ plan: ReminderPlan) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(plan.clocks.joined(separator: " · "))
+                        .font(.title3.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(plan.enabled ? Color.primary : Color.secondary)
+                        .lineLimit(2)
+
                     Text(plan.name.isEmpty ? "未命名提醒" : plan.name)
-                        .font(.headline)
-                    Text("表单：\(plan.formID) · 账号：\(plan.accountName)")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(plan.enabled ? Color.primary : Color.secondary)
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 Toggle("", isOn: Binding(
                     get: { plan.enabled },
                     set: { next in
@@ -132,53 +167,72 @@ struct RemindersView: View {
                 .labelsHidden()
             }
 
-            HStack(spacing: 8) {
-                GlassStatusPill(
-                    title: plan.clocks.joined(separator: ", "),
-                    systemImage: "clock",
-                    tint: plan.enabled ? .accentColor : .gray
-                )
-                GlassStatusPill(
+            FlowLayout(spacing: 6, lineSpacing: 6) {
+                StatusBadge(
                     title: weekdaySummary(plan.weekdays),
                     systemImage: "calendar",
-                    tint: .secondary
+                    tint: plan.enabled ? Color.accentColor : Color.secondary
+                )
+                StatusBadge(
+                    title: "表单 \(plan.formID)",
+                    systemImage: "doc.text",
+                    tint: Color.secondary,
+                    monospaced: true
+                )
+                StatusBadge(
+                    title: plan.accountName,
+                    systemImage: "person.fill",
+                    tint: Color.teal
                 )
             }
 
-            if plan.enabled,
-               let nextDate = try? ReminderScheduler.nextTriggerDate(clocks: plan.clocks, weekdays: plan.weekdays) {
-                Text("下次提醒：\(nextDate.formatted(date: .abbreviated, time: .shortened))")
+            VStack(alignment: .leading, spacing: 3) {
+                if plan.enabled,
+                   let nextDate = try? ReminderScheduler.nextTriggerDate(clocks: plan.clocks, weekdays: plan.weekdays) {
+                    Label(
+                        "下次提醒：\(nextDate.formatted(date: .abbreviated, time: .shortened))",
+                        systemImage: "bell.badge"
+                    )
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                    .foregroundStyle(Color.accentColor)
+                }
 
-            Text(plan.usePOIPool
-                 ? "定位：从 POI 点位池随机抽取 · 抖动 \(Int(plan.jitterMeters))m"
-                 : "定位：\(plan.title.isEmpty ? (plan.addr.isEmpty ? String(format: "%.6f,%.6f", plan.lat, plan.lng) : plan.addr) : plan.title) · 抖动 \(Int(plan.jitterMeters))m")
+                Label(
+                    plan.usePOIPool
+                        ? "POI 点位池随机 · ±\(Int(plan.jitterMeters))m"
+                        : "\(plan.title.isEmpty ? (plan.addr.isEmpty ? String(format: "%.6f,%.6f", plan.lat, plan.lng) : plan.addr) : plan.title) · ±\(Int(plan.jitterMeters))m",
+                    systemImage: "mappin.and.ellipse"
+                )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
 
-            if !plan.lastRunStatus.isEmpty {
-                let timeText = plan.lastTriggeredAt?.formatted(date: .omitted, time: .shortened) ?? ""
-                Text("最近执行\(timeText.isEmpty ? "" : "（\(timeText)）")：\(plan.lastRunStatus)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if !plan.lastRunStatus.isEmpty {
+                    let timeText = plan.lastTriggeredAt?.formatted(date: .omitted, time: .shortened) ?? ""
+                    Text("最近执行\(timeText.isEmpty ? "" : "（\(timeText)）")：\(plan.lastRunStatus)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                }
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Button {
                     runPlanNow(plan)
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         if runningPlanID == plan.id {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
                             Image(systemName: "play.fill")
                         }
-                        Text("立即执行一次")
+                        Text("立即执行")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                     }
                     .font(.caption.weight(.semibold))
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 .controlSize(.small)
@@ -187,8 +241,9 @@ struct RemindersView: View {
                 Button {
                     appState.openFormInCheckin(formID: plan.formID)
                 } label: {
-                    Label("打开填报", systemImage: "arrow.up.forward.app")
-                        .font(.caption)
+                    Label("去填报", systemImage: "arrow.up.forward")
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
                 }
                 .buttonStyle(.glass)
                 .controlSize(.small)
@@ -197,13 +252,15 @@ struct RemindersView: View {
                     editingPlan = plan
                 } label: {
                     Label("编辑", systemImage: "pencil")
-                        .font(.caption)
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
                 }
                 .buttonStyle(.glass)
                 .controlSize(.small)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .opacity(plan.enabled ? 1.0 : 0.78)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
                 deletePlan(plan)
@@ -221,31 +278,56 @@ struct RemindersView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(appState.runLogs.prefix(30)) { log in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Image(systemName: log.success ? "checkmark.circle.fill" : "xmark.octagon.fill")
-                                .foregroundStyle(log.success ? .green : .red)
-                            Text(log.formTitle.isEmpty ? log.formID : log.formTitle)
-                                .font(.subheadline.weight(.medium))
-                                .lineLimit(1)
-                            Spacer()
-                            Text(log.timestamp.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption2)
+                    HStack(alignment: .top, spacing: 10) {
+                        IconBadge(
+                            systemImage: log.success ? "checkmark" : "xmark",
+                            tint: log.success ? Color.green : Color.red,
+                            size: 26
+                        )
+                        .padding(.top, 2)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(log.formTitle.isEmpty ? log.formID : log.formTitle)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(log.timestamp.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Text(log.message)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if !log.fid.isEmpty || !log.accountName.isEmpty {
+                                Text([
+                                    log.accountName.isEmpty ? nil : "账号 \(log.accountName)",
+                                    log.fid.isEmpty ? nil : "fid \(log.fid)"
+                                ].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption2.monospaced())
                                 .foregroundStyle(.tertiary)
-                        }
-                        Text(log.message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if !log.fid.isEmpty || !log.accountName.isEmpty {
-                            Text([
-                                log.accountName.isEmpty ? nil : "账号: \(log.accountName)",
-                                log.fid.isEmpty ? nil : "fid: \(log.fid)"
-                            ].compactMap { $0 }.joined(separator: " · "))
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            }
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 3)
+                    .contextMenu {
+                        if !log.formID.isEmpty {
+                            Button {
+                                appState.openFormInCheckin(formID: log.formID)
+                            } label: {
+                                Label("在填报页打开此表单", systemImage: "arrow.up.forward.app")
+                            }
+                        }
+                        Button {
+                            UIPasteboard.general.string = log.message
+                            appState.showToast("已复制日志详情")
+                        } label: {
+                            Label("复制日志内容", systemImage: "doc.on.doc")
+                        }
+                    }
                 }
             }
         } header: {
@@ -267,8 +349,8 @@ struct RemindersView: View {
     private var notificationStatusTitle: String {
         switch authStatus {
         case .authorized, .provisional, .ephemeral: return "通知已授权"
-        case .denied: return "通知已拒绝（请在系统设置开启）"
-        case .notDetermined: return "尚未申请通知权限"
+        case .denied: return "通知已关闭"
+        case .notDetermined: return "未开启通知权限"
         @unknown default: return "通知状态未知"
         }
     }
@@ -408,7 +490,8 @@ private struct ReminderEditorSheet: View {
     @State private var name: String
     @State private var formInput: String
     @State private var accountName: String
-    @State private var clocksText: String
+    @State private var clocks: [ReminderClock]
+    @State private var pickerTime: Date
     @State private var selectedWeekdays: Set<Int>
     @State private var usePOIPool: Bool
     @State private var latText: String
@@ -445,7 +528,22 @@ private struct ReminderEditorSheet: View {
         _name = State(initialValue: existingPlan?.name ?? "")
         _formInput = State(initialValue: existingPlan?.formID ?? "")
         _accountName = State(initialValue: existingPlan?.accountName ?? "default")
-        _clocksText = State(initialValue: existingPlan?.clocks.joined(separator: ",") ?? "08:45,18:05")
+
+        let initialClocks: [ReminderClock] = {
+            if let existing = existingPlan?.clocks,
+               let parsed = try? ReminderScheduler.validateClocks(existing),
+               !parsed.isEmpty {
+                return parsed.sorted()
+            }
+            return [ReminderClock(hour: 8, minute: 45), ReminderClock(hour: 18, minute: 5)]
+        }()
+        _clocks = State(initialValue: initialClocks)
+
+        var defaultPickerComps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        defaultPickerComps.hour = 9
+        defaultPickerComps.minute = 0
+        _pickerTime = State(initialValue: Calendar.current.date(from: defaultPickerComps) ?? Date())
+
         _selectedWeekdays = State(initialValue: Set(existingPlan?.weekdays ?? []))
         _usePOIPool = State(initialValue: existingPlan?.usePOIPool ?? false)
         let initLat = existingPlan.flatMap { $0.lat != 0 ? String(format: "%.6f", $0.lat) : nil } ?? ""
@@ -464,7 +562,7 @@ private struct ReminderEditorSheet: View {
             Form {
                 Section("基本信息") {
                     TextField("计划名称（如 早晚打卡）", text: $name)
-                    HStack {
+                    HStack(spacing: 8) {
                         TextField("表单 ID 或分享链接", text: $formInput)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
@@ -490,29 +588,92 @@ private struct ReminderEditorSheet: View {
                 }
 
                 Section("提醒时间与重复") {
-                    TextField("多时间点（HH:mm 逗号分隔，如 08:45,18:05）", text: $clocksText)
-                        .font(.body.monospaced())
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("已选时间点（\(clocks.count)）")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(selectedWeekdays.isEmpty ? "重复星期：每天（点击以下按钮限定星期）" : "重复星期（已选 \(selectedWeekdays.count) 天）")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if clocks.isEmpty {
+                            Text("请通过下方时间选择器至少添加一个提醒时间")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        } else {
+                            FlowLayout(spacing: 8, lineSpacing: 8) {
+                                ForEach(clocks, id: \.self) { clock in
+                                    HStack(spacing: 5) {
+                                        Text(clock.formatted)
+                                            .font(.subheadline.monospacedDigit().weight(.semibold))
+                                        Button {
+                                            withAnimation(.snappy(duration: 0.2)) {
+                                                clocks.removeAll(where: { $0 == clock })
+                                            }
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("删除时间 \(clock.formatted)")
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.accentColor.opacity(0.14), in: Capsule())
+                                    .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                        }
+
+                        HStack(spacing: 10) {
+                            DatePicker("添加时间", selection: $pickerTime, displayedComponents: .hourAndMinute)
+                                .labelsHidden()
+                                .datePickerStyle(.compact)
+
+                            Button {
+                                addClockFromPicker()
+                            } label: {
+                                Label("添加时间点", systemImage: "plus")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.glass)
+                            .controlSize(.small)
+
+                            Spacer()
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text(selectedWeekdays.isEmpty ? "重复：每天" : "重复：已选 \(selectedWeekdays.count) 天")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            HStack(spacing: 6) {
+                                weekdayPresetButton("每天", days: [])
+                                weekdayPresetButton("工作日", days: [1, 2, 3, 4, 5])
+                                weekdayPresetButton("周末", days: [6, 7])
+                            }
+                        }
+
                         HStack(spacing: 6) {
                             ForEach(weekdayOptions) { option in
                                 let active = selectedWeekdays.contains(option.id)
                                 Button {
-                                    if active {
-                                        selectedWeekdays.remove(option.id)
-                                    } else {
-                                        selectedWeekdays.insert(option.id)
+                                    withAnimation(.snappy(duration: 0.2)) {
+                                        if active {
+                                            selectedWeekdays.remove(option.id)
+                                        } else {
+                                            selectedWeekdays.insert(option.id)
+                                        }
                                     }
                                 } label: {
                                     Text(option.label)
                                         .font(.subheadline.weight(.semibold))
                                         .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 8)
+                                        .frame(minHeight: 38)
                                         .background(
                                             active ? Color.accentColor : Color(.tertiarySystemFill),
                                             in: Capsule()
@@ -520,13 +681,16 @@ private struct ReminderEditorSheet: View {
                                         .foregroundStyle(active ? Color.white : Color.primary)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("周\(option.label)")
+                                .accessibilityAddTraits(active ? .isSelected : [])
                             }
                         }
                     }
                     .padding(.vertical, 4)
+                    .sensoryFeedback(.selection, trigger: selectedWeekdays)
                 }
 
-                Section("定位参数（用于「立即执行一次」）") {
+                Section("定位参数（用于「立即执行」）") {
                     Toggle("从 POI 点位池随机抽取", isOn: $usePOIPool)
 
                     if !usePOIPool {
@@ -537,13 +701,25 @@ private struct ReminderEditorSheet: View {
                         }
                         .buttonStyle(.glass)
 
-                        HStack {
-                            TextField("纬度 lat", text: $latText)
-                                .keyboardType(.decimalPad)
-                                .font(.body.monospaced())
-                            TextField("经度 lng", text: $lngText)
-                                .keyboardType(.decimalPad)
-                                .font(.body.monospaced())
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("纬度 Lat")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                TextField("39.908823", text: $latText)
+                                    .keyboardType(.decimalPad)
+                                    .font(.subheadline.monospaced())
+                                    .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("经度 Lng")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                TextField("116.397470", text: $lngText)
+                                    .keyboardType(.decimalPad)
+                                    .font(.subheadline.monospaced())
+                                    .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
+                            }
                         }
                         Toggle("输入坐标为 WGS-84", isOn: $wgs84)
                         TextField("地点名称（title）", text: $title)
@@ -554,8 +730,11 @@ private struct ReminderEditorSheet: View {
                         HStack {
                             Text("随机抖动半径")
                             Spacer()
-                            Text("\(Int(jitterMeters)) 米")
-                                .font(.caption.monospacedDigit())
+                            StatusBadge(
+                                title: "±\(Int(jitterMeters)) m",
+                                tint: jitterMeters > 0 ? Color.orange : Color.secondary,
+                                monospaced: true
+                            )
                         }
                         Slider(value: $jitterMeters, in: 0...200, step: 5)
                     }
@@ -563,20 +742,30 @@ private struct ReminderEditorSheet: View {
 
                 if let errorMessage {
                     Section {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                        InlineFeedbackBanner(
+                            message: errorMessage,
+                            systemImage: "exclamationmark.triangle.fill",
+                            tint: .red
+                        )
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                     }
                 }
             }
+            .keyboardDoneToolbar()
             .navigationTitle(existingPlan == nil ? "新建提醒计划" : "编辑提醒计划")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationDragIndicator(.visible)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { savePlan() }
-                        .disabled(isSaving)
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button("保存") { savePlan() }
+                    }
                 }
             }
             .sheet(isPresented: $showMyForms) {
@@ -588,8 +777,8 @@ private struct ReminderEditorSheet: View {
                 }
             }
             .sheet(isPresented: $showMapPicker) {
-                let lat = Double(latText) ?? 0
-                let lng = Double(lngText) ?? 0
+                let lat = Double(latText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+                let lng = Double(lngText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
                 let initPt: GeoPoint? = (try? GeoMath.validateCoord(lat: lat, lng: lng)) != nil
                     ? (wgs84 ? GeoMath.wgs84ToGCJ02(GeoPoint(lat: lat, lng: lng)) : GeoPoint(lat: lat, lng: lng))
                     : nil
@@ -616,25 +805,62 @@ private struct ReminderEditorSheet: View {
         }
     }
 
+    private func weekdayPresetButton(_ label: String, days: Set<Int>) -> some View {
+        let isMatch = selectedWeekdays == days
+        return Button(label) {
+            withAnimation(.snappy(duration: 0.2)) {
+                selectedWeekdays = days
+            }
+        }
+        .font(.caption2.weight(.semibold))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(isMatch ? Color.accentColor.opacity(0.18) : Color(.tertiarySystemFill), in: Capsule())
+        .foregroundStyle(isMatch ? Color.accentColor : Color.secondary)
+        .buttonStyle(.plain)
+    }
+
+    private func addClockFromPicker() {
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: pickerTime)
+        let newClock = ReminderClock(hour: comps.hour ?? 8, minute: comps.minute ?? 0)
+        if !clocks.contains(newClock) {
+            withAnimation(.snappy(duration: 0.2)) {
+                clocks.append(newClock)
+                clocks.sort()
+            }
+        }
+    }
+
     private func savePlan() {
+        dismissKeyboard()
         errorMessage = nil
-        let parsedClocks: [ReminderClock]
+
+        let validatedClocks: [ReminderClock]
         do {
-            parsedClocks = try ReminderScheduler.parseClockList(clocksText)
+            validatedClocks = try ReminderScheduler.validateClocks(clocks.map(\.formatted))
         } catch {
             errorMessage = error.localizedDescription
             return
         }
 
-        let latVal = Double(latText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-        let lngVal = Double(lngText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-        if !usePOIPool && (latVal != 0 || lngVal != 0) {
+        let trimmedLat = latText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLng = lngText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var latVal: Double = 0
+        var lngVal: Double = 0
+
+        if !usePOIPool && (!trimmedLat.isEmpty || !trimmedLng.isEmpty) {
+            guard let parsedLat = Double(trimmedLat), let parsedLng = Double(trimmedLng) else {
+                errorMessage = "请输入有效的数字经纬度"
+                return
+            }
             do {
-                try GeoMath.validateCoord(lat: latVal, lng: lngVal)
+                try GeoMath.validateCoord(lat: parsedLat, lng: parsedLng)
             } catch {
                 errorMessage = error.localizedDescription
                 return
             }
+            latVal = parsedLat
+            lngVal = parsedLng
         }
 
         isSaving = true
@@ -651,7 +877,7 @@ private struct ReminderEditorSheet: View {
                     accountName: cleanAccount.isEmpty ? "default" : cleanAccount,
                     formID: parsedLink.formID,
                     enabled: enabled,
-                    clocks: parsedClocks.map(\.formatted),
+                    clocks: validatedClocks.map(\.formatted),
                     weekdays: selectedWeekdays.sorted(),
                     usePOIPool: usePOIPool,
                     lat: latVal,

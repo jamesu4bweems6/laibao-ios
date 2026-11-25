@@ -40,7 +40,34 @@ final class AppState {
 
     var toastMessage: String?
     var toastIsError: Bool = false
+    var toastToken: UUID = UUID()
     private var toastDismissTask: Task<Void, Never>?
+
+    /// Deduplicated recently accessed forms derived from local run logs for 1-tap mobile access.
+    struct RecentFormEntry: Identifiable, Hashable, Sendable {
+        var id: String { formID }
+        let formID: String
+        let title: String
+        let lastTime: Date
+        let lastSucceeded: Bool
+    }
+
+    var recentForms: [RecentFormEntry] {
+        var seen = Set<String>()
+        var result: [RecentFormEntry] = []
+        for log in runLogs {
+            let trimmedID = log.formID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedID.isEmpty, seen.insert(trimmedID).inserted else { continue }
+            result.append(RecentFormEntry(
+                formID: trimmedID,
+                title: log.formTitle.isEmpty ? "表单 \(trimmedID)" : log.formTitle,
+                lastTime: log.timestamp,
+                lastSucceeded: log.success
+            ))
+            if result.count >= 5 { break }
+        }
+        return result
+    }
 
     // MARK: - Initialization
 
@@ -200,6 +227,7 @@ final class AppState {
         withAnimation(.snappy(duration: 0.28)) {
             toastMessage = message
             toastIsError = isError
+            toastToken = UUID()
         }
         toastDismissTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3.5))

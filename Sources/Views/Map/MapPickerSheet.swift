@@ -94,12 +94,12 @@ final class OneShotLocationLocator: NSObject, CLLocationManagerDelegate {
 }
 
 /// Native MapKit + Liquid Glass interactive location picker supporting:
-/// - Tap-to-place pin via `MapReader`
+/// - Tap-to-place pin via `MapReader` with haptic feedback
 /// - Green `SPECIFIED_LOCATION` geofence circles + anchor pins + live distance badge
 /// - Orange jitter preview circle
 /// - Blue clickable saved POI pins
-/// - `MKLocalSearch` + local POI search dropdown & map layer switcher
-/// - `CLLocationManager` GPS locate, anchor focus, zoom controls, and `CLGeocoder` reverse geocoding
+/// - `MKLocalSearch` + local POI search dropdown & floating glass map layer menu
+/// - Compact/expandable floating glass detail card maximizing map viewport on mobile screens
 struct MapPickerSheet: View {
     private enum MapLayerStyle: String, CaseIterable, Hashable, Sendable {
         case standard
@@ -108,9 +108,17 @@ struct MapPickerSheet: View {
 
         var title: String {
             switch self {
-            case .standard: return "标准"
-            case .hybrid: return "混合"
-            case .satellite: return "卫星"
+            case .standard: return "标准地图"
+            case .hybrid: return "混合卫星"
+            case .satellite: return "纯卫星图"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .standard: return "map"
+            case .hybrid: return "square.3.layers.3d"
+            case .satellite: return "globe.asia.australia.fill"
             }
         }
 
@@ -121,6 +129,12 @@ struct MapPickerSheet: View {
             case .satellite: return .imagery(elevation: .realistic)
             }
         }
+    }
+
+    private enum FocusField: Hashable {
+        case search
+        case title
+        case addr
     }
 
     private struct SearchCandidate: Identifiable {
@@ -152,8 +166,13 @@ struct MapPickerSheet: View {
     @State private var searchResults: [SearchCandidate] = []
     @State private var isSearching: Bool = false
     @State private var isReverseGeocoding: Bool = false
+    @State private var isEditingDetails: Bool = false
     @State private var statusBanner: String?
     @State private var locator = OneShotLocationLocator()
+
+    @State private var searchTask: Task<Void, Never>?
+    @State private var reverseGeocodeTask: Task<Void, Never>?
+    @FocusState private var focusedField: FocusField?
 
     init(
         initialPoint: GeoPoint? = nil,
@@ -201,23 +220,38 @@ struct MapPickerSheet: View {
         _cameraPosition = State(initialValue: .region(region))
     }
 
+    private var shouldShowRightControls: Bool {
+        focusedField == nil && searchResults.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 mapCanvas
                     .ignoresSafeArea(edges: .bottom)
 
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     topFloatingChrome
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        rightControlCluster
+
+                    Spacer(minLength: 8)
+
+                    if shouldShowRightControls {
+                        HStack {
+                            Spacer()
+                            rightControlCluster
+                        }
+                        .transition(.opacity.combined(with: .scale(scale: 0.94)))
                     }
-                    bottomDetailCard
+
+                    if focusedField != .search {
+                        bottomDetailCard
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
+                .animation(.snappy(duration: 0.24), value: shouldShowRightControls)
+                .animation(.snappy(duration: 0.24), value: isEditingDetails)
             }
             .navigationTitle("地图选点")
             .navigationBarTitleDisplayMode(.inline)
@@ -225,11 +259,23 @@ struct MapPickerSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
+                if focusedField != nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") {
+                            focusedField = nil
+                        }
+                    }
+                }
             }
+            .sensoryFeedback(.selection, trigger: selectedPoint)
             .onChange(of: locator.errorMessage) { _, err in
                 if let err {
                     statusBanner = err
                 }
+            }
+            .onDisappear {
+                searchTask?.cancel()
+                reverseGeocodeTask?.cancel()
             }
         }
     }
@@ -248,12 +294,13 @@ struct MapPickerSheet: View {
 
                     Annotation(anchor.displayName, coordinate: coord, anchor: .bottom) {
                         Button {
+                            focusedField = nil
                             selectAnchor(anchor)
                         } label: {
                             Image(systemName: "flag.circle.fill")
                                 .font(.title2)
                                 .foregroundStyle(.white, .green)
-                                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                                .shadow(color: Color.black.opacity(0.28), radius: 4, y: 2)
                         }
                         .buttonStyle(.plain)
                     }
@@ -276,12 +323,13 @@ struct MapPickerSheet: View {
                         anchor: .bottom
                     ) {
                         Button {
+                            focusedField = nil
                             selectPOI(poi)
                         } label: {
                             Image(systemName: "mappin.circle.fill")
                                 .font(.title2)
                                 .foregroundStyle(.white, .blue)
-                                .shadow(color: .black.opacity(0.22), radius: 3, y: 1)
+                                .shadow(color: Color.black.opacity(0.24), radius: 3, y: 1)
                         }
                         .buttonStyle(.plain)
                     }
@@ -292,10 +340,15 @@ struct MapPickerSheet: View {
                     coordinate: CLLocationCoordinate2D(latitude: selectedPoint.lat, longitude: selectedPoint.lng),
                     anchor: .bottom
                 ) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.title.bold())
-                        .foregroundStyle(.red)
-                        .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
+                    ZStack {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 34, height: 34)
+                            .shadow(color: Color.black.opacity(0.28), radius: 5, y: 2)
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(Color.red)
+                    }
                 }
             }
             .mapStyle(layerStyle.mapStyle)
@@ -303,6 +356,7 @@ struct MapPickerSheet: View {
                 currentRegion = context.region
             }
             .onTapGesture { screenPoint in
+                focusedField = nil
                 if let coord = proxy.convert(screenPoint, from: .local) {
                     let pt = GeoPoint(lat: round6(coord.latitude), lng: round6(coord.longitude))
                     selectedPoint = pt
@@ -320,13 +374,17 @@ struct MapPickerSheet: View {
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
+
                     TextField("搜索地点或已保存 POI...", text: $searchQuery)
                         .textFieldStyle(.plain)
+                        .focused($focusedField, equals: .search)
                         .submitLabel(.search)
                         .onSubmit {
                             performSearch()
                         }
+
                     if isSearching {
                         ProgressView()
                             .controlSize(.small)
@@ -339,51 +397,61 @@ struct MapPickerSheet: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("清空搜索")
+
+                        Button("搜索") {
+                            performSearch()
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
                     }
-                    Button("搜索") {
-                        performSearch()
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.vertical, 9)
                 .glassEffect(.regular, in: .capsule)
             }
             .opacity(appearsActive ? 1.0 : 0.78)
-
-            GlassSegmentedControl(
-                items: MapLayerStyle.allCases,
-                selection: $layerStyle,
-                title: \.title,
-                tint: .accentColor
-            )
 
             if let match = activeAnchorMatch {
                 let distInt = Int(match.distanceMeters.rounded())
                 let scopeInt = Int(match.anchor.scope.rounded())
                 GlassStatusPill(
                     title: match.isWithinScope
-                        ? "距围栏中心 \(distInt) 米（上限 \(scopeInt) 米）· 围栏内 ✓"
-                        : "距围栏中心 \(distInt) 米（上限 \(scopeInt) 米）· 超出 ✗",
+                        ? "围栏内 · 距中心 \(distInt)m / \(scopeInt)m"
+                        : "超出围栏 · 距中心 \(distInt)m / \(scopeInt)m",
                     systemImage: match.isWithinScope ? "checkmark.shield.fill" : "exclamationmark.triangle.fill",
-                    tint: match.isWithinScope ? .green : .orange
+                    tint: match.isWithinScope ? Color.green : Color.orange,
+                    lineLimit: 2
                 )
             }
 
             if let statusBanner, !statusBanner.isEmpty {
-                GlassStatusPill(title: statusBanner, systemImage: "info.circle.fill", tint: .orange)
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        self.statusBanner = nil
+                    }
+                } label: {
+                    GlassStatusPill(
+                        title: statusBanner,
+                        systemImage: "info.circle.fill",
+                        tint: .orange,
+                        isInteractive: true,
+                        lineLimit: 2
+                    )
+                }
+                .buttonStyle(.plain)
             }
 
             if !searchResults.isEmpty {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(searchResults) { candidate in
                             Button {
                                 applySearchCandidate(candidate)
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: candidate.isLocalPOI ? "mappin.circle.fill" : "magnifyingglass.circle.fill")
+                                        .font(.title3)
                                         .foregroundStyle(candidate.isLocalPOI ? Color.blue : Color.secondary)
                                     VStack(alignment: .leading, spacing: 2) {
                                         HStack(spacing: 6) {
@@ -392,12 +460,7 @@ struct MapPickerSheet: View {
                                                 .foregroundStyle(.primary)
                                                 .lineLimit(1)
                                             if candidate.isLocalPOI {
-                                                Text("点位池")
-                                                    .font(.caption2.weight(.semibold))
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 2)
-                                                    .background(Color.blue.opacity(0.16), in: Capsule())
-                                                    .foregroundStyle(.blue)
+                                                StatusBadge(title: "点位池", tint: .blue)
                                             }
                                         }
                                         if !candidate.subtitle.isEmpty {
@@ -407,18 +470,19 @@ struct MapPickerSheet: View {
                                                 .lineLimit(1)
                                         }
                                     }
-                                    Spacer()
+                                    Spacer(minLength: 4)
                                 }
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 10)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            Divider().padding(.leading, 40)
+                            Divider().padding(.leading, 44)
                         }
                     }
                 }
-                .frame(maxHeight: 200)
-                .glassEffect(.regular, in: .rect(cornerRadius: 18))
+                .frame(maxHeight: 220)
+                .glassEffect(.regular, in: .rect(cornerRadius: 20))
             }
         }
     }
@@ -427,6 +491,30 @@ struct MapPickerSheet: View {
 
     private var rightControlCluster: some View {
         GlassMapControlCluster(axis: .vertical, spacing: 10) {
+            Menu {
+                ForEach(MapLayerStyle.allCases, id: \.self) { style in
+                    Button {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            layerStyle = style
+                        }
+                    } label: {
+                        if layerStyle == style {
+                            Label(style.title, systemImage: "checkmark")
+                        } else {
+                            Label(style.title, systemImage: style.systemImage)
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: layerStyle.systemImage)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(layerStyle == .standard ? Color.primary : Color.accentColor)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .glassEffect(layerButtonGlass, in: .circle)
+            .accessibilityLabel("切换地图图层，当前：\(layerStyle.title)")
+
             GlassMapIconButton(
                 systemImage: locator.isLocating ? "location.circle" : "location.fill",
                 accessibilityLabel: "定位到当前位置",
@@ -469,44 +557,96 @@ struct MapPickerSheet: View {
 
     private var bottomDetailCard: some View {
         let wgs = GeoMath.gcj02ToWGS84(selectedPoint)
+        let displayTitle = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayAddr = addrText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return GlassEffectContainer(spacing: 10) {
             VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text("GCJ-02（提交）：\(selectedPoint.formatted)")
-                            .font(.caption.monospaced())
-                        Spacer()
-                        if jitterRadiusMeters > 0 {
-                            Text("抖动 \(Int(jitterRadiusMeters))m")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.orange)
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(displayTitle.isEmpty ? "轻点地图落针或反查地址" : displayTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        if !displayAddr.isEmpty && displayAddr != displayTitle {
+                            Text(displayAddr)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+
+                        HStack(spacing: 6) {
+                            Text("GCJ-02 \(selectedPoint.formatted)")
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+
+                            if jitterRadiusMeters > 0 {
+                                StatusBadge(
+                                    title: "±\(Int(jitterRadiusMeters))m",
+                                    tint: .orange,
+                                    monospaced: true
+                                )
+                            }
                         }
                     }
-                    Text("WGS-84（GPS）：\(wgs.formatted)")
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 4)
+
+                    Button {
+                        withAnimation(.snappy(duration: 0.24)) {
+                            isEditingDetails.toggle()
+                            if !isEditingDetails {
+                                focusedField = nil
+                            }
+                        }
+                    } label: {
+                        Label(isEditingDetails ? "收起" : "编辑", systemImage: isEditingDetails ? "chevron.down" : "pencil")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
                 }
 
-                VStack(spacing: 8) {
-                    TextField("地点名称（title）", text: $titleText)
-                        .textFieldStyle(.plain)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color(.secondarySystemBackground).opacity(0.85), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                if isEditingDetails {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("WGS-84（GPS）：\(wgs.formatted)")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
 
-                    TextField("详细地址（address）", text: $addrText)
-                        .textFieldStyle(.plain)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color(.secondarySystemBackground).opacity(0.85), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        TextField("地点名称（title）", text: $titleText)
+                            .textFieldStyle(.plain)
+                            .focused($focusedField, equals: .title)
+                            .font(.subheadline)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Color.primary.opacity(0.06),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            )
+
+                        TextField("详细地址（address）", text: $addrText)
+                            .textFieldStyle(.plain)
+                            .focused($focusedField, equals: .addr)
+                            .font(.subheadline)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Color.primary.opacity(0.06),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            )
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 HStack(spacing: 10) {
                     Button {
+                        focusedField = nil
                         reverseGeocodeCurrentPoint()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             if isReverseGeocoding {
                                 ProgressView()
                                     .controlSize(.small)
@@ -514,12 +654,15 @@ struct MapPickerSheet: View {
                                 Image(systemName: "text.magnifyingglass")
                             }
                             Text("反查地址")
+                                .font(.subheadline.weight(.medium))
+                                .lineLimit(1)
                         }
                     }
                     .buttonStyle(.glass)
                     .disabled(isReverseGeocoding)
 
                     Button {
+                        focusedField = nil
                         let fallbackAddr = addrText.trimmingCharacters(in: .whitespacesAndNewlines)
                         let fallbackTitle = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
                         let finalAddr = fallbackAddr.isEmpty ? selectedPoint.formatted : fallbackAddr
@@ -529,6 +672,7 @@ struct MapPickerSheet: View {
                     } label: {
                         Text(confirmButtonTitle)
                             .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glassProminent)
@@ -541,6 +685,13 @@ struct MapPickerSheet: View {
     }
 
     // MARK: - Computed Helpers & Actions
+
+    private var layerButtonGlass: Glass {
+        if layerStyle == .standard {
+            return .regular.interactive()
+        }
+        return .regular.tint(Color.accentColor.opacity(0.24)).interactive()
+    }
 
     private var activeAnchorMatch: AnchorMatch? {
         guard !anchors.isEmpty else { return nil }
@@ -597,6 +748,9 @@ struct MapPickerSheet: View {
     }
 
     private func performSearch() {
+        focusedField = nil
+        searchTask?.cancel()
+
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             searchResults = []
@@ -621,13 +775,14 @@ struct MapPickerSheet: View {
         statusBanner = nil
 
         let regionSnapshot = currentRegion
-        Task {
+        searchTask = Task {
             defer { isSearching = false }
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = trimmed
             request.region = regionSnapshot
             do {
                 let response = try await MKLocalSearch(request: request).start()
+                guard !Task.isCancelled else { return }
                 let remote: [SearchCandidate] = response.mapItems.prefix(12).enumerated().map { idx, item in
                     let coord = item.placemark.coordinate
                     let gcj = GeoMath.wgs84ToGCJ02(GeoPoint(lat: coord.latitude, lng: coord.longitude))
@@ -644,7 +799,10 @@ struct MapPickerSheet: View {
                 if searchResults.isEmpty {
                     statusBanner = "未找到匹配的地点"
                 }
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 if localMatches.isEmpty {
                     statusBanner = "地图搜索失败：\(error.localizedDescription)"
                 }
@@ -653,6 +811,7 @@ struct MapPickerSheet: View {
     }
 
     private func applySearchCandidate(_ candidate: SearchCandidate) {
+        focusedField = nil
         selectedPoint = candidate.gcjPoint
         titleText = candidate.title
         addrText = candidate.subtitle
@@ -661,15 +820,17 @@ struct MapPickerSheet: View {
     }
 
     private func reverseGeocodeCurrentPoint() {
+        reverseGeocodeTask?.cancel()
         isReverseGeocoding = true
         statusBanner = nil
         let wgs = GeoMath.gcj02ToWGS84(selectedPoint)
         let location = CLLocation(latitude: wgs.lat, longitude: wgs.lng)
 
-        Task {
+        reverseGeocodeTask = Task {
             defer { isReverseGeocoding = false }
             do {
                 let placemarks = try await CLGeocoder().reverseGeocodeLocation(location)
+                guard !Task.isCancelled else { return }
                 guard let placemark = placemarks.first else {
                     statusBanner = "未反查到地址信息"
                     return
@@ -701,7 +862,10 @@ struct MapPickerSheet: View {
                 } else if !builtAddr.isEmpty {
                     titleText = builtAddr
                 }
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 statusBanner = "反查地址失败：\(error.localizedDescription)"
             }
         }

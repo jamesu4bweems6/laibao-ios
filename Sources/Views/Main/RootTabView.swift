@@ -13,6 +13,7 @@ struct RootTabView: View {
             Tab("账号", systemImage: "person.crop.circle", value: AppTab.accounts) {
                 AccountsView()
             }
+            .badge(appState.accounts.isEmpty ? Text("!") : nil)
 
             Tab("填报", systemImage: "checkmark.circle", value: AppTab.checkin) {
                 CheckinView()
@@ -41,10 +42,15 @@ struct RootTabView: View {
                         appState.dismissToast()
                     }
                 )
-                .padding(.top, 8)
+                .padding(.top, 6)
                 .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(10)
             }
         }
         .animation(.snappy(duration: 0.28), value: appState.toastMessage)
+        .sensoryFeedback(trigger: appState.toastToken) { _, _ in
+            guard appState.toastMessage != nil else { return nil }
+            return appState.toastIsError ? .error : .success
+        }
     }
 }

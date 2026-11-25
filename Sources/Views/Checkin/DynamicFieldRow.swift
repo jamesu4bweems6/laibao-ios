@@ -47,6 +47,15 @@ struct LocationFieldState: Equatable {
         wgs84 = poi.wgs84
         usePOIPool = false
     }
+
+    mutating func applyAnchor(_ anchor: LocationAnchor) {
+        let outputPoint = wgs84 ? GeoMath.gcj02ToWGS84(anchor.point) : anchor.point
+        latText = String(format: "%.6f", outputPoint.lat)
+        lngText = String(format: "%.6f", outputPoint.lng)
+        addr = anchor.address.isEmpty ? anchor.specifiedAddress : anchor.address
+        title = anchor.specifiedAddress.isEmpty ? anchor.address : anchor.specifiedAddress
+        usePOIPool = false
+    }
 }
 
 /// Renders native SwiftUI controls for every supported LaiBao / QunBaoShu dynamic field type.
@@ -58,6 +67,7 @@ struct DynamicFieldRow: View {
     let onOpenMapPicker: (FormField) -> Void
 
     @State private var newImageURL: String = ""
+    @State private var imageHint: String?
     @State private var dateSelection: Date = Date()
     @State private var dateInitialized: Bool = false
 
@@ -98,27 +108,31 @@ struct DynamicFieldRow: View {
                 wordEditor
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Header
 
     private var fieldHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            if field.must {
-                Text("*")
-                    .font(.headline)
-                    .foregroundStyle(.red)
-            }
+        let presentation = FieldTypePresentation.forType(field.normalizedType)
+        return HStack(alignment: .top, spacing: 8) {
             Text(field.title)
-                .font(.headline)
-            Spacer()
-            Text(field.type)
-                .font(.caption2.monospaced())
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background(Color(.tertiarySystemFill), in: Capsule())
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 6)
+
+            HStack(spacing: 5) {
+                if field.must {
+                    StatusBadge(title: "必填", tint: .red)
+                }
+                StatusBadge(
+                    title: presentation.label,
+                    systemImage: presentation.systemImage,
+                    tint: presentation.tint
+                )
+            }
         }
     }
 
@@ -129,19 +143,20 @@ struct DynamicFieldRow: View {
         let spec = field.specifiedLocation
 
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                GlassStatusPill(
+            FlowLayout(spacing: 6, lineSpacing: 6) {
+                StatusBadge(
                     title: spec?.locationType.displayName ?? LocationType.free.displayName,
                     systemImage: "location.circle.fill",
-                    tint: spec?.locationType == .specified ? .green : .blue
+                    tint: spec?.locationType == .specified ? Color.green : Color.blue
                 )
                 if let match = currentAnchorMatch(spec: spec) {
                     let dist = Int(match.distanceMeters.rounded())
                     let scope = Int(match.anchor.scope.rounded())
-                    GlassStatusPill(
+                    StatusBadge(
                         title: match.isWithinScope ? "围栏内 \(dist)/\(scope)m" : "超出 \(dist)/\(scope)m",
                         systemImage: match.isWithinScope ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
-                        tint: match.isWithinScope ? .green : .orange
+                        tint: match.isWithinScope ? Color.green : Color.orange,
+                        monospaced: true
                     )
                 }
             }
@@ -157,6 +172,7 @@ struct DynamicFieldRow: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .font(.subheadline)
                 } else if let anchor = spec.anchors.first {
                     Text("围栏中心：\(anchor.displayName) · 半径 \(Int(anchor.scope)) 米")
                         .font(.caption)
@@ -167,8 +183,16 @@ struct DynamicFieldRow: View {
             Toggle("从 POI 点位池随机抽取（共 \(savedPOIs.count) 个）", isOn: $locationState.usePOIPool)
                 .font(.subheadline)
 
-            if !locationState.usePOIPool {
-                HStack(spacing: 8) {
+            if locationState.usePOIPool {
+                if savedPOIs.isEmpty {
+                    InlineFeedbackBanner(
+                        message: "当前 POI 点位池为空，请先在「点位」页添加常用点位，或关闭此开关手动选点。",
+                        systemImage: "exclamationmark.triangle.fill",
+                        tint: .orange
+                    )
+                }
+            } else {
+                FlowLayout(spacing: 8, lineSpacing: 8) {
                     Button {
                         onOpenMapPicker(field)
                     } label: {
@@ -178,11 +202,26 @@ struct DynamicFieldRow: View {
                     .buttonStyle(.glassProminent)
                     .controlSize(.small)
 
+                    if let spec, spec.locationType == .specified, let targetAnchor = preferredAnchor(for: spec) {
+                        Button {
+                            withAnimation(.snappy(duration: 0.2)) {
+                                locationState.applyAnchor(targetAnchor)
+                                fieldValues.removeValue(forKey: field.cid)
+                            }
+                        } label: {
+                            Label("填入围栏中心", systemImage: "scope")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
+                    }
+
                     if !savedPOIs.isEmpty {
                         Menu {
                             ForEach(savedPOIs) { poi in
                                 Button(poi.title.isEmpty ? poi.addr : poi.title) {
                                     locationState.applyPOI(poi)
+                                    fieldValues.removeValue(forKey: field.cid)
                                 }
                             }
                         } label: {
@@ -195,27 +234,53 @@ struct DynamicFieldRow: View {
                 }
 
                 HStack(spacing: 8) {
-                    TextField("纬度 lat", text: $locationState.latText)
-                        .keyboardType(.decimalPad)
-                        .font(.body.monospaced())
-                        .padding(8)
-                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
-                    TextField("经度 lng", text: $locationState.lngText)
-                        .keyboardType(.decimalPad)
-                        .font(.body.monospaced())
-                        .padding(8)
-                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("纬度 Lat")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        TextField("39.908823", text: $locationState.latText)
+                            .keyboardType(.decimalPad)
+                            .font(.subheadline.monospaced())
+                            .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("经度 Lng")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        TextField("116.397470", text: $locationState.lngText)
+                            .keyboardType(.decimalPad)
+                            .font(.subheadline.monospaced())
+                            .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
+                    }
                 }
 
                 Toggle("输入为 WGS-84 坐标（提交自动转 GCJ-02）", isOn: $locationState.wgs84)
                     .font(.caption)
 
-                TextField("地点名称（title）", text: $locationState.title)
-                    .padding(8)
-                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
-                TextField("详细地址（address）", text: $locationState.addr)
-                    .padding(8)
-                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+                if locationState.wgs84, let gcj = locationState.gcj02PreviewPoint {
+                    Text("实际提交 GCJ-02：\(gcj.formatted)")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("地点名称（title）")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    TextField("如：教学楼 / 写字楼名称", text: $locationState.title)
+                        .font(.subheadline)
+                        .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("详细地址（address）")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    TextField("省市区街道门牌号", text: $locationState.addr)
+                        .font(.subheadline)
+                        .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
+                }
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -224,12 +289,22 @@ struct DynamicFieldRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(Int(locationState.jitterMeters)) 米")
-                        .font(.caption.monospacedDigit().weight(.semibold))
+                    StatusBadge(
+                        title: "±\(Int(locationState.jitterMeters)) m",
+                        tint: locationState.jitterMeters > 0 ? Color.orange : Color.secondary,
+                        monospaced: true
+                    )
                 }
                 Slider(value: $locationState.jitterMeters, in: 0...200, step: 5)
             }
         }
+    }
+
+    private func preferredAnchor(for spec: SpecifiedLocation) -> LocationAnchor? {
+        if let idx = locationState.anchorIndex, spec.anchors.indices.contains(idx) {
+            return spec.anchors[idx]
+        }
+        return spec.anchors.first
     }
 
     private func currentAnchorMatch(spec: SpecifiedLocation?) -> AnchorMatch? {
@@ -252,8 +327,7 @@ struct DynamicFieldRow: View {
             axis: .vertical
         )
         .lineLimit(2...5)
-        .padding(10)
-        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+        .mobileInputField()
     }
 
     private func typedTextEditor(placeholder: String, keyboard: UIKeyboardType) -> some View {
@@ -261,8 +335,7 @@ struct DynamicFieldRow: View {
             .keyboardType(keyboard)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .padding(10)
-            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+            .mobileInputField()
     }
 
     private var stringValueBinding: Binding<String> {
@@ -273,8 +346,7 @@ struct DynamicFieldRow: View {
                     ?? ""
             },
             set: { newValue in
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
+                if newValue.isEmpty {
                     fieldValues.removeValue(forKey: field.cid)
                 } else {
                     fieldValues[field.cid] = .string(newValue)
@@ -292,36 +364,46 @@ struct DynamicFieldRow: View {
             typedTextEditor(placeholder: "输入选项 cid", keyboard: .default)
         } else {
             let selectedCID = currentSelectedRadioCID
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 ForEach(options) { option in
                     let isSelected = selectedCID == option.cid
                     Button {
-                        if isSelected && !field.must {
-                            fieldValues.removeValue(forKey: field.cid)
-                        } else {
-                            fieldValues[field.cid] = .object([
-                                "cid": .string(option.cid),
-                                "customValue": .string("")
-                            ])
+                        withAnimation(.snappy(duration: 0.2)) {
+                            if isSelected && !field.must {
+                                fieldValues.removeValue(forKey: field.cid)
+                            } else {
+                                fieldValues[field.cid] = .object([
+                                    "cid": .string(option.cid),
+                                    "customValue": .string("")
+                                ])
+                            }
                         }
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                                .font(.body)
                                 .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                             Text(option.label)
-                                .font(.subheadline)
+                                .font(.subheadline.weight(isSelected ? .medium : .regular))
                                 .foregroundStyle(.primary)
                                 .multilineTextAlignment(.leading)
-                            Spacer()
+                            Spacer(minLength: 4)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(minHeight: 44)
                         .background(
-                            isSelected ? Color.accentColor.opacity(0.12) : Color(.tertiarySystemFill).opacity(0.6),
-                            in: RoundedRectangle(cornerRadius: 10)
+                            isSelected ? Color.accentColor.opacity(0.12) : Color(.tertiarySystemFill).opacity(0.55),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                         )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(isSelected ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
         }
@@ -342,42 +424,52 @@ struct DynamicFieldRow: View {
             typedTextEditor(placeholder: "输入选项 cid", keyboard: .default)
         } else {
             let selectedSet = currentSelectedCheckboxCIDs
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 ForEach(options) { option in
                     let isSelected = selectedSet.contains(option.cid)
                     Button {
-                        var next = selectedSet
-                        if isSelected {
-                            next.remove(option.cid)
-                        } else {
-                            next.insert(option.cid)
-                        }
-                        let ordered = options.map(\.cid).filter { next.contains($0) }
-                        if ordered.isEmpty {
-                            fieldValues.removeValue(forKey: field.cid)
-                        } else {
-                            fieldValues[field.cid] = .array(
-                                ordered.map { .object(["cid": .string($0), "customValue": .string("")]) }
-                            )
+                        withAnimation(.snappy(duration: 0.2)) {
+                            var next = selectedSet
+                            if isSelected {
+                                next.remove(option.cid)
+                            } else {
+                                next.insert(option.cid)
+                            }
+                            let ordered = options.map(\.cid).filter { next.contains($0) }
+                            if ordered.isEmpty {
+                                fieldValues.removeValue(forKey: field.cid)
+                            } else {
+                                fieldValues[field.cid] = .array(
+                                    ordered.map { .object(["cid": .string($0), "customValue": .string("")]) }
+                                )
+                            }
                         }
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                                .font(.body)
                                 .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                             Text(option.label)
-                                .font(.subheadline)
+                                .font(.subheadline.weight(isSelected ? .medium : .regular))
                                 .foregroundStyle(.primary)
                                 .multilineTextAlignment(.leading)
-                            Spacer()
+                            Spacer(minLength: 4)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(minHeight: 44)
                         .background(
-                            isSelected ? Color.accentColor.opacity(0.12) : Color(.tertiarySystemFill).opacity(0.6),
-                            in: RoundedRectangle(cornerRadius: 10)
+                            isSelected ? Color.accentColor.opacity(0.12) : Color(.tertiarySystemFill).opacity(0.55),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                         )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(isSelected ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
         }
@@ -405,7 +497,7 @@ struct DynamicFieldRow: View {
                 "选择时间",
                 selection: Binding(
                     get: {
-                        if let parsed = Self.parseDateString(currentText) {
+                        if let parsed = UIFormatters.parseFlexibleDate(currentText) {
                             return parsed
                         }
                         return dateSelection
@@ -420,9 +512,10 @@ struct DynamicFieldRow: View {
             .datePickerStyle(.compact)
 
             HStack(spacing: 8) {
-                Text(currentText.isEmpty ? "提交时自动填入当前时间（YYYY-MM-DD HH:mm）" : "提交值：\(currentText)")
+                Text(currentText.isEmpty ? "留空将自动填当前时间" : currentText)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 Spacer()
                 Button("此刻") {
                     let now = Date()
@@ -445,25 +538,11 @@ struct DynamicFieldRow: View {
             if !dateInitialized {
                 dateInitialized = true
                 if let existing = fieldValues[field.cid]?.stringValue,
-                   let parsed = Self.parseDateString(existing) {
+                   let parsed = UIFormatters.parseFlexibleDate(existing) {
                     dateSelection = parsed
                 }
             }
         }
-    }
-
-    private static func parseDateString(_ raw: String) -> Date? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        for fmt in ["yyyy-MM-dd HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"] {
-            formatter.dateFormat = fmt
-            if let date = formatter.date(from: trimmed) {
-                return date
-            }
-        }
-        return nil
     }
 
     // MARK: - AREA (4 fields)
@@ -472,18 +551,14 @@ struct DynamicFieldRow: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 TextField("省（province）", text: areaBinding("province"))
-                    .padding(8)
-                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+                    .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
                 TextField("市（city）", text: areaBinding("city"))
-                    .padding(8)
-                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+                    .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
             }
             TextField("区 / 县（district）", text: areaBinding("district"))
-                .padding(8)
-                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+                .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
             TextField("详细地址（address）", text: areaBinding("address"))
-                .padding(8)
-                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+                .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
         }
     }
 
@@ -537,9 +612,8 @@ struct DynamicFieldRow: View {
             ))
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .font(.body.monospaced())
-            .padding(10)
-            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+            .font(.subheadline.monospaced())
+            .mobileInputField()
 
             Text(#"提交格式：{"pathCids": ["..."]}"#)
                 .font(.caption2.monospaced())
@@ -554,45 +628,74 @@ struct DynamicFieldRow: View {
         return VStack(alignment: .leading, spacing: 8) {
             ForEach(urls.indices, id: \.self) { idx in
                 let url = urls[idx]
-                HStack(spacing: 8) {
-                    Image(systemName: "photo")
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    AsyncImage(url: URL(string: url)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        default:
+                            ZStack {
+                                Color(.tertiarySystemFill)
+                                Image(systemName: "photo")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(PayloadBuilder.fileName(from: url))
                             .font(.caption.weight(.medium))
+                            .lineLimit(1)
                         Text(url)
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                            .truncationMode(.middle)
                     }
-                    Spacer()
+                    Spacer(minLength: 4)
                     Button(role: .destructive) {
                         var next = urls
                         next.remove(at: idx)
                         saveImageURLs(next)
                     } label: {
                         Image(systemName: "minus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.red)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.red)
+                    .accessibilityLabel("移除图片")
                 }
                 .padding(8)
-                .background(Color(.tertiarySystemFill).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+                .background(
+                    Color(.tertiarySystemFill).opacity(0.55),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
             }
 
-            HStack(spacing: 8) {
-                TextField("粘贴图片 URL（https://...）", text: $newImageURL)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .padding(8)
-                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+            TextField("输入或粘贴图片 URL（https://...）", text: $newImageURL)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.subheadline)
+                .mobileInputField(verticalPadding: 8, horizontalPadding: 10)
 
-                Button("添加") {
+            HStack(spacing: 8) {
+                Button {
                     let trimmed = newImageURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
+                    guard !trimmed.isEmpty else {
+                        imageHint = "请先输入图片链接"
+                        return
+                    }
+                    imageHint = nil
                     saveImageURLs(urls + [trimmed])
                     newImageURL = ""
+                } label: {
+                    Label("添加链接", systemImage: "plus")
+                        .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.glass)
                 .controlSize(.small)
@@ -600,14 +703,23 @@ struct DynamicFieldRow: View {
                 Button {
                     if let pasted = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !pasted.isEmpty {
+                        imageHint = nil
                         saveImageURLs(urls + [pasted])
+                    } else {
+                        imageHint = "剪贴板为空"
                     }
                 } label: {
-                    Image(systemName: "doc.on.clipboard")
+                    Label("从剪贴板粘贴", systemImage: "doc.on.clipboard")
+                        .font(.caption)
                 }
                 .buttonStyle(.glass)
                 .controlSize(.small)
-                .accessibilityLabel("粘贴图片链接")
+            }
+
+            if let imageHint {
+                Text(imageHint)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
             }
         }
     }

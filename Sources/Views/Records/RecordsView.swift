@@ -3,7 +3,7 @@ import UIKit
 
 /// Submission records query & inspection tab supporting:
 /// - `我的记录` (`myRecords`), `最近一条` (`lastRecord`), `全员列表` (`allRecords`)
-/// - Smart Form ID / Link resolution & 「我的接龙」 picker
+/// - Smart Form ID / Link resolution, 1-tap recent forms, & 「我的接龙」 picker
 /// - One-tap 「带入编辑」 jumping directly into `CheckinView` in edit mode (`fid` + pre-filled catalogs)
 struct RecordsView: View {
     private enum RecordQueryMode: String, CaseIterable, Hashable, Sendable {
@@ -31,16 +31,34 @@ struct RecordsView: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
     @State private var showMyFormsSheet: Bool = false
+    @State private var fetchTask: Task<Void, Never>?
 
     private let pageSize: Int = 10
+
+    private var totalPages: Int {
+        guard totalCount > 0 else { return max(1, pageNo) }
+        return max(1, Int(ceil(Double(totalCount) / Double(pageSize))))
+    }
+
+    private var hasNextPage: Bool {
+        if totalCount > 0 {
+            return pageNo * pageSize < totalCount
+        }
+        return records.count >= pageSize
+    }
 
     var body: some View {
         NavigationStack {
             List {
+                modePickerSection
                 queryHeaderSection
+                if resolvedFormID.isEmpty && records.isEmpty && !appState.recentForms.isEmpty {
+                    recentFormsSection
+                }
                 resultsSection
             }
             .listStyle(.insetGrouped)
+            .keyboardDoneToolbar()
             .navigationTitle("提交记录")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -67,13 +85,29 @@ struct RecordsView: View {
                     fetchRecords(page: 1)
                 }
             }
+            .onDisappear {
+                fetchTask?.cancel()
+            }
         }
     }
 
     // MARK: - Sections
 
+    private var modePickerSection: some View {
+        Section {
+            GlassSegmentedControl(
+                items: RecordQueryMode.allCases,
+                selection: $mode,
+                title: \.title,
+                tint: .accentColor
+            )
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            .listRowBackground(Color.clear)
+        }
+    }
+
     private var queryHeaderSection: some View {
-        Section("查询条件") {
+        Section("表单与查询") {
             HStack(spacing: 8) {
                 TextField("粘贴表单 ID 或分享链接", text: $formInput)
                     .textInputAutocapitalization(.never)
@@ -83,10 +117,25 @@ struct RecordsView: View {
                         fetchRecords(page: 1)
                     }
 
+                if !formInput.isEmpty {
+                    Button {
+                        formInput = ""
+                        errorMessage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("清空输入")
+                }
+
                 Button {
-                    if let pasted = UIPasteboard.general.string {
+                    if let pasted = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !pasted.isEmpty {
                         formInput = pasted
                         fetchRecords(page: 1)
+                    } else {
+                        appState.showToast("剪贴板为空", isError: true)
                     }
                 } label: {
                     Image(systemName: "doc.on.clipboard")
@@ -96,53 +145,82 @@ struct RecordsView: View {
                 .accessibilityLabel("粘贴并查询")
             }
 
-            GlassSegmentedControl(
-                items: RecordQueryMode.allCases,
-                selection: $mode,
-                title: \.title,
-                tint: .accentColor
-            )
-            .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-
-            HStack(spacing: 10) {
-                Button {
-                    fetchRecords(page: 1)
-                } label: {
-                    HStack(spacing: 6) {
-                        if isLoading {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "magnifyingglass")
-                        }
-                        Text("查询记录")
+            Button {
+                dismissKeyboard()
+                fetchRecords(page: 1)
+            } label: {
+                HStack(spacing: 6) {
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "magnifyingglass")
                     }
-                    .frame(maxWidth: .infinity)
+                    Text(isLoading ? "正在查询..." : "查询记录")
+                        .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.glassProminent)
-                .disabled(isLoading || formInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                Button {
-                    showMyFormsSheet = true
-                } label: {
-                    Label("我的接龙", systemImage: "tray.full")
-                }
-                .buttonStyle(.glass)
+                .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.glassProminent)
+            .disabled(isLoading || formInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             if !resolvedFormID.isEmpty {
-                HStack(spacing: 8) {
-                    GlassStatusPill(title: "表单 ID: \(resolvedFormID)", systemImage: "doc.text", tint: .blue)
+                FlowLayout(spacing: 6, lineSpacing: 6) {
+                    StatusBadge(
+                        title: "表单 ID \(resolvedFormID)",
+                        systemImage: "doc.text",
+                        tint: .blue,
+                        monospaced: true
+                    )
                     if totalCount > 0 {
-                        GlassStatusPill(title: "共 \(totalCount) 条", tint: .green)
+                        StatusBadge(
+                            title: "共 \(totalCount) 条",
+                            systemImage: "number",
+                            tint: .green,
+                            monospaced: true
+                        )
                     }
                 }
             }
 
             if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                InlineFeedbackBanner(
+                    message: errorMessage,
+                    systemImage: "exclamationmark.triangle.fill",
+                    tint: .red
+                )
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+            }
+        }
+    }
+
+    private var recentFormsSection: some View {
+        Section("最近使用的表单") {
+            ForEach(appState.recentForms) { item in
+                Button {
+                    formInput = item.formID
+                    fetchRecords(page: 1)
+                } label: {
+                    HStack(spacing: 10) {
+                        IconBadge(systemImage: "clock.arrow.circlepath", tint: .accentColor, size: 30)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text("ID \(item.formID)")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -152,18 +230,36 @@ struct RecordsView: View {
             if isLoading && records.isEmpty {
                 HStack {
                     Spacer()
-                    ProgressView("正在拉取提交记录...")
-                        .padding(.vertical, 24)
+                    VStack(spacing: 10) {
+                        ProgressView()
+                        Text("正在拉取提交记录...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 26)
                     Spacer()
                 }
             } else if records.isEmpty {
-                ContentUnavailableView(
-                    resolvedFormID.isEmpty ? "请输入表单 ID 查询" : "暂无提交记录",
-                    systemImage: "list.bullet.clipboard",
-                    description: Text(resolvedFormID.isEmpty
-                                      ? "可粘贴活动链接、短链或从「我的接龙」选择表单。"
-                                      : "当前查询模式（\(mode.title)）未返回任何记录。")
-                )
+                ContentUnavailableView {
+                    Label(
+                        resolvedFormID.isEmpty ? "输入表单 ID 开始查询" : "暂无提交记录",
+                        systemImage: "list.bullet.clipboard"
+                    )
+                } description: {
+                    Text(resolvedFormID.isEmpty
+                         ? "可粘贴分享链接、短链，或从「我的接龙」选择要查看的活动。"
+                         : "当前模式（\(mode.title)）未返回任何记录。")
+                } actions: {
+                    if resolvedFormID.isEmpty {
+                        Button {
+                            showMyFormsSheet = true
+                        } label: {
+                            Label("浏览我的接龙", systemImage: "tray.full")
+                        }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.small)
+                    }
+                }
                 .listRowBackground(Color.clear)
             } else {
                 ForEach(records) { record in
@@ -172,26 +268,36 @@ struct RecordsView: View {
 
                 if mode != .last {
                     HStack {
-                        Button("上一页") {
+                        Button {
                             fetchRecords(page: max(1, pageNo - 1))
+                        } label: {
+                            Label("上一页", systemImage: "chevron.left")
+                                .font(.subheadline.weight(.medium))
                         }
                         .buttonStyle(.glass)
                         .controlSize(.small)
                         .disabled(isLoading || pageNo <= 1)
 
                         Spacer()
-                        Text("第 \(pageNo) 页")
-                            .font(.caption.monospacedDigit())
+                        Text(totalCount > 0 ? "第 \(pageNo) / \(totalPages) 页" : "第 \(pageNo) 页")
+                            .font(.caption.monospacedDigit().weight(.medium))
                             .foregroundStyle(.secondary)
                         Spacer()
 
-                        Button("下一页") {
+                        Button {
                             fetchRecords(page: pageNo + 1)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("下一页")
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.subheadline.weight(.medium))
                         }
                         .buttonStyle(.glass)
                         .controlSize(.small)
-                        .disabled(isLoading || records.count < pageSize)
+                        .disabled(isLoading || !hasNextPage)
                     }
+                    .padding(.vertical, 2)
                 }
             }
         } header: {
@@ -200,16 +306,22 @@ struct RecordsView: View {
     }
 
     private func recordCard(_ record: RecordItem) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
                 if !record.sequenceText.isEmpty {
-                    GlassStatusPill(title: "序号 #\(record.sequenceText)", tint: .accentColor)
+                    StatusBadge(
+                        title: "#\(record.sequenceText)",
+                        tint: .accentColor,
+                        monospaced: true
+                    )
                 }
                 if !record.submitter.isEmpty {
                     Text(record.submitter)
                         .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
-                Spacer()
+                Spacer(minLength: 6)
                 if !record.fid.isEmpty && !resolvedFormID.isEmpty {
                     Button {
                         appState.openFormInCheckin(
@@ -227,14 +339,15 @@ struct RecordsView: View {
                 }
             }
 
-            if !record.fid.isEmpty {
-                Text("fid: \(record.fid)")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
+                if !record.fid.isEmpty {
+                    Text("fid: \(record.fid)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 if !record.createTimeText.isEmpty {
                     Text("提交时间：\(record.createTimeText)")
                         .font(.caption)
@@ -248,36 +361,41 @@ struct RecordsView: View {
             }
 
             if let labelStrings = record.labels?.displayStrings, !labelStrings.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(labelStrings, id: \.self) { label in
-                            Text(label)
-                                .font(.caption2.weight(.medium))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color.accentColor.opacity(0.14), in: Capsule())
-                                .foregroundStyle(Color.accentColor)
-                        }
+                FlowLayout(spacing: 6, lineSpacing: 6) {
+                    ForEach(labelStrings, id: \.self) { label in
+                        StatusBadge(title: label, tint: .accentColor)
                     }
                 }
             }
 
             if !record.catalogs.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(record.catalogs) { cat in
-                        HStack(alignment: .top, spacing: 6) {
-                            Text(cat.type.isEmpty ? cat.cid : "\(cat.type)#\(cat.cid)")
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.secondary)
-                                .frame(minWidth: 70, alignment: .leading)
+                        let presentation = FieldTypePresentation.forType(cat.type)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 5) {
+                                Image(systemName: presentation.systemImage)
+                                    .font(.caption2)
+                                    .foregroundStyle(presentation.tint)
+                                Text(cat.type.isEmpty ? "字段 #\(cat.cid)" : "\(presentation.label) · \(cat.cid)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
                             Text(formatCatalogValue(cat))
                                 .font(.caption)
                                 .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
                                 .textSelection(.enabled)
                         }
                     }
                 }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    Color(.tertiarySystemFill).opacity(0.5),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
             }
         }
         .padding(.vertical, 4)
@@ -286,7 +404,8 @@ struct RecordsView: View {
     // MARK: - Actions & Formatting
 
     private func fetchRecords(page: Int) {
-        Task {
+        fetchTask?.cancel()
+        fetchTask = Task {
             await fetchRecordsAsync(page: page)
         }
     }
@@ -298,23 +417,28 @@ struct RecordsView: View {
             return
         }
 
+        let requestedMode = mode
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
             let parsed = try await FormLinkParser.resolveFormID(trimmed)
+            guard !Task.isCancelled else { return }
             resolvedFormID = parsed.formID
             let client = try appState.makeAPIClient()
 
-            switch mode {
+            switch requestedMode {
             case .mine:
                 let list = try await client.myRecords(formID: parsed.formID, pageNo: page, pageSize: pageSize)
+                guard !Task.isCancelled, requestedMode == mode else { return }
                 records = list.list
                 totalCount = list.total
                 pageNo = page
             case .last:
-                if let latest = try await client.lastRecord(formID: parsed.formID) {
+                let latest = try await client.lastRecord(formID: parsed.formID)
+                guard !Task.isCancelled, requestedMode == mode else { return }
+                if let latest {
                     records = [latest]
                     totalCount = 1
                 } else {
@@ -324,11 +448,15 @@ struct RecordsView: View {
                 pageNo = 1
             case .all:
                 let list = try await client.allRecords(formID: parsed.formID, pageNo: page, pageSize: pageSize)
+                guard !Task.isCancelled, requestedMode == mode else { return }
                 records = list.list
                 totalCount = list.total
                 pageNo = page
             }
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
             records = []
             totalCount = 0

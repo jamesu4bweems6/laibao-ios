@@ -14,7 +14,9 @@ struct MyFormsSheet: View {
     @State private var hasMore: Bool = false
     @State private var items: [FormSummary] = []
     @State private var isLoading: Bool = false
+    @State private var isLoadingMore: Bool = false
     @State private var errorMessage: String?
+    @State private var loadTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -26,15 +28,18 @@ struct MyFormsSheet: View {
                         title: \.displayName,
                         tint: .accentColor
                     )
-                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                     .listRowBackground(Color.clear)
                 }
 
                 if let errorMessage {
                     Section {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                        InlineFeedbackBanner(
+                            message: errorMessage,
+                            systemImage: "exclamationmark.triangle.fill",
+                            tint: .red
+                        )
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                     }
                 }
 
@@ -42,8 +47,13 @@ struct MyFormsSheet: View {
                     if isLoading && items.isEmpty {
                         HStack {
                             Spacer()
-                            ProgressView("正在加载接龙列表...")
-                                .padding(.vertical, 24)
+                            VStack(spacing: 10) {
+                                ProgressView()
+                                Text("正在加载接龙列表...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 28)
                             Spacer()
                         }
                     } else if items.isEmpty {
@@ -66,36 +76,50 @@ struct MyFormsSheet: View {
 
                         if hasMore {
                             Button {
-                                loadPage(page: pageNo + 1, append: true)
+                                loadNextPage()
                             } label: {
-                                HStack {
+                                HStack(spacing: 8) {
                                     Spacer()
-                                    if isLoading {
+                                    if isLoadingMore {
                                         ProgressView()
                                             .controlSize(.small)
+                                        Text("加载中...")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
                                     } else {
                                         Text("加载更多（第 \(pageNo + 1) 页）")
                                             .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(Color.accentColor)
                                     }
                                     Spacer()
                                 }
+                                .padding(.vertical, 4)
                             }
-                            .disabled(isLoading)
+                            .disabled(isLoadingMore || isLoading)
                         }
                     }
                 } header: {
-                    Text("\(scope.displayName)（已加载 \(items.count) 条）")
+                    HStack {
+                        Text("\(scope.displayName)（已加载 \(items.count) 条）")
+                        Spacer()
+                        if isLoading && !items.isEmpty {
+                            ProgressView()
+                                .controlSize(.mini)
+                        }
+                    }
                 }
             }
             .listStyle(.insetGrouped)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("我的接龙")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationDragIndicator(.visible)
             .searchable(text: $keyword, prompt: "搜索标题或表单 ID")
             .onSubmit(of: .search) {
-                loadPage(page: 1, append: false)
+                reloadFirstPage()
             }
             .refreshable {
-                await loadPageAsync(page: 1, append: false)
+                await performLoad(page: 1, append: false)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -103,102 +127,138 @@ struct MyFormsSheet: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        loadPage(page: 1, append: false)
+                        reloadFirstPage()
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
                     .disabled(isLoading)
+                    .accessibilityLabel("刷新接龙列表")
                 }
             }
             .onAppear {
                 if items.isEmpty {
-                    loadPage(page: 1, append: false)
+                    reloadFirstPage()
                 }
             }
+            .onDisappear {
+                loadTask?.cancel()
+            }
             .onChange(of: scope) { _, _ in
-                loadPage(page: 1, append: false)
+                reloadFirstPage()
             }
             .onChange(of: keyword) { _, newValue in
                 if newValue.isEmpty {
-                    loadPage(page: 1, append: false)
+                    reloadFirstPage()
                 }
             }
         }
     }
 
     private func formSummaryRow(_ summary: FormSummary) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 8) {
-                Text(summary.title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                Spacer(minLength: 8)
-                GlassStatusPill(
-                    title: summary.statusText,
-                    tint: summary.status == 2 ? .green : .gray
-                )
-            }
-
-            HStack(spacing: 10) {
-                Text("ID: \(summary.formID)")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                if !summary.actType.isEmpty {
-                    Text(summary.actType)
-                        .font(.caption2.weight(.medium))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(.tertiarySystemFill), in: Capsule())
-                        .foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(summary.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    Spacer(minLength: 6)
+                    StatusBadge(
+                        title: summary.statusText,
+                        tint: summary.status == 2 ? Color.green : Color.secondary
+                    )
                 }
-                Spacer()
-                if summary.participantCount > 0 {
-                    Label("\(summary.participantCount)", systemImage: "person.2")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
 
-            if !summary.creatorName.isEmpty || !summary.updatedAt.isEmpty || !summary.createTime.isEmpty {
-                HStack(spacing: 8) {
-                    if !summary.creatorName.isEmpty {
-                        Text("创建者：\(summary.creatorName)")
+                FlowLayout(spacing: 6, lineSpacing: 4) {
+                    Text("ID \(summary.formID)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+
+                    if !summary.actType.isEmpty {
+                        Text(summary.actType)
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.tertiarySystemFill), in: Capsule())
+                            .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    let timeText = summary.updatedAt.isEmpty ? summary.createTime : summary.updatedAt
-                    if !timeText.isEmpty {
-                        Text(timeText)
+
+                    if summary.participantCount > 0 {
+                        Label("\(summary.participantCount)", systemImage: "person.2")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .font(.caption2)
+
+                if !summary.creatorName.isEmpty || !summary.updatedAt.isEmpty || !summary.createTime.isEmpty {
+                    HStack(spacing: 8) {
+                        if !summary.creatorName.isEmpty {
+                            Text("创建者：\(summary.creatorName)")
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 6)
+                        let timeText = summary.updatedAt.isEmpty ? summary.createTime : summary.updatedAt
+                        if !timeText.isEmpty {
+                            Text(timeText)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                }
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
-            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
 
-    private func loadPage(page: Int, append: Bool) {
-        Task {
-            await loadPageAsync(page: page, append: append)
+    private func reloadFirstPage() {
+        loadTask?.cancel()
+        loadTask = Task {
+            await performLoad(page: 1, append: false)
         }
     }
 
-    private func loadPageAsync(page: Int, append: Bool) async {
-        guard !isLoading else { return }
-        isLoading = true
+    private func loadNextPage() {
+        guard !isLoading, !isLoadingMore, hasMore else { return }
+        let nextPage = pageNo + 1
+        loadTask = Task {
+            await performLoad(page: nextPage, append: true)
+        }
+    }
+
+    private func performLoad(page: Int, append: Bool) async {
+        let requestedScope = scope
+        let requestedKeyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if append {
+            isLoadingMore = true
+        } else {
+            isLoading = true
+        }
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if append {
+                isLoadingMore = false
+            } else {
+                isLoading = false
+            }
+        }
 
         do {
             let client = try appState.makeAPIClient()
             let res = try await client.listForms(
-                scope: scope,
+                scope: requestedScope,
                 pageNo: page,
                 pageSize: 20,
-                keyword: keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+                keyword: requestedKeyword
             )
+            guard !Task.isCancelled, requestedScope == scope else { return }
             pageNo = res.pageNo
             hasMore = res.hasMore
             if append {
@@ -208,7 +268,10 @@ struct MyFormsSheet: View {
             } else {
                 items = res.items
             }
+        } catch is CancellationError {
+            return
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
             if !append {
                 items = []

@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 /// Main dynamic check-in & form editing tab with smart link resolution,
-/// 「我的接龙」 browser, dynamic native field controls, MapKit geofence selection,
-/// patch (补卡) mode, edit mode (`fid`), and floating Liquid Glass Dry-Run / Submit dock.
+/// 「我的接龙」 browser, 1-tap recent forms, dynamic native field controls,
+/// MapKit geofence selection, patch (补卡) mode, edit mode (`fid`),
+/// and a floating Liquid Glass Dry-Run / Submit dock.
 struct CheckinView: View {
     @Environment(AppState.self) private var appState
 
@@ -11,6 +12,7 @@ struct CheckinView: View {
     @State private var parsedLink: ParsedFormLink?
     @State private var parseError: String?
     @State private var isLoadingForm: Bool = false
+    @State private var loadFormTask: Task<Void, Never>?
     @State private var loadedForm: ActInfo?
 
     @State private var fieldValues: [String: JSONValue] = [:]
@@ -51,22 +53,33 @@ struct CheckinView: View {
                     if editFID.isEmpty {
                         patchSectionView
                     }
+                } else {
+                    emptyFormHelperSections
                 }
 
                 if let lastSubmitSummary {
                     Section("最近一次提交结果") {
-                        Label(lastSubmitSummary, systemImage: "checkmark.seal.fill")
-                            .foregroundStyle(.green)
+                        InlineFeedbackBanner(
+                            message: lastSubmitSummary,
+                            systemImage: "checkmark.seal.fill",
+                            tint: .green
+                        )
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                     }
                 }
 
                 if let submitError {
                     Section("提交错误") {
-                        Label(submitError, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                        InlineFeedbackBanner(
+                            message: submitError,
+                            systemImage: "exclamationmark.triangle.fill",
+                            tint: .red
+                        )
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                     }
                 }
             }
+            .keyboardDoneToolbar()
             .navigationTitle("动态填报")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -81,15 +94,20 @@ struct CheckinView: View {
                 if loadedForm != nil {
                     GlassFloatingActionBar {
                         Button {
+                            dismissKeyboard()
                             runDryRun()
                         } label: {
-                            Label("预览载荷 (Dry-Run)", systemImage: "doc.text.magnifyingglass")
+                            Label("预览", systemImage: "doc.text.magnifyingglass")
                                 .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
                         }
                         .buttonStyle(.glass)
+                        .controlSize(.large)
                         .disabled(isSubmitting)
+                        .accessibilityLabel("预览提交载荷 Dry-Run")
 
                         Button {
+                            dismissKeyboard()
                             submitForm()
                         } label: {
                             HStack(spacing: 6) {
@@ -101,10 +119,12 @@ struct CheckinView: View {
                                 }
                                 Text(editFID.isEmpty ? "立即提交" : "保存修改")
                                     .font(.subheadline.weight(.semibold))
+                                    .lineLimit(1)
                             }
                             .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glassProminent)
+                        .controlSize(.large)
                         .disabled(isSubmitting)
                     }
                 }
@@ -136,9 +156,12 @@ struct CheckinView: View {
             }
             .onAppear {
                 if patchDateText.isEmpty {
-                    patchDateText = Self.formatYMD(patchDateSelection)
+                    patchDateText = UIFormatters.ymd.string(from: patchDateSelection)
                 }
                 consumeHandoffIfNeeded()
+            }
+            .onDisappear {
+                loadFormTask?.cancel()
             }
             .onChange(of: appState.pendingCheckinRequestToken) { _, _ in
                 consumeHandoffIfNeeded()
@@ -159,10 +182,25 @@ struct CheckinView: View {
                         loadForm(from: formInput, editFID: nil, editCatalogs: nil)
                     }
 
+                if !formInput.isEmpty {
+                    Button {
+                        formInput = ""
+                        parseError = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("清空输入")
+                }
+
                 Button {
-                    if let pasted = UIPasteboard.general.string {
+                    if let pasted = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !pasted.isEmpty {
                         formInput = pasted
                         loadForm(from: pasted, editFID: nil, editCatalogs: nil)
+                    } else {
+                        appState.showToast("剪贴板为空", isError: true)
                     }
                 } label: {
                     Image(systemName: "doc.on.clipboard")
@@ -172,40 +210,34 @@ struct CheckinView: View {
                 .accessibilityLabel("粘贴并解析")
             }
 
-            HStack(spacing: 10) {
-                Button {
-                    loadForm(from: formInput, editFID: nil, editCatalogs: nil)
-                } label: {
-                    HStack(spacing: 6) {
-                        if isLoadingForm {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.down.doc.fill")
-                        }
-                        Text("解析并加载表单")
+            Button {
+                dismissKeyboard()
+                loadForm(from: formInput, editFID: nil, editCatalogs: nil)
+            } label: {
+                HStack(spacing: 6) {
+                    if isLoadingForm {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.down.doc.fill")
                     }
-                    .frame(maxWidth: .infinity)
+                    Text(isLoadingForm ? "正在解析加载..." : "解析并加载表单")
+                        .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.glassProminent)
-                .disabled(isLoadingForm || formInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                Button {
-                    showMyFormsSheet = true
-                } label: {
-                    Label("我的接龙", systemImage: "tray.full")
-                }
-                .buttonStyle(.glass)
+                .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.glassProminent)
+            .disabled(isLoadingForm || formInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             if let parsed = parsedLink {
-                HStack(spacing: 8) {
-                    GlassStatusPill(
-                        title: "ID: \(parsed.formID)",
+                FlowLayout(spacing: 6, lineSpacing: 6) {
+                    StatusBadge(
+                        title: "ID \(parsed.formID)",
                         systemImage: "checkmark.circle.fill",
-                        tint: .green
+                        tint: .green,
+                        monospaced: true
                     )
-                    GlassStatusPill(
+                    StatusBadge(
                         title: sourceDisplayName(parsed.source),
                         tint: .blue
                     )
@@ -213,9 +245,12 @@ struct CheckinView: View {
             }
 
             if let parseError {
-                Label(parseError, systemImage: "exclamationmark.triangle.fill")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                InlineFeedbackBanner(
+                    message: parseError,
+                    systemImage: "exclamationmark.triangle.fill",
+                    tint: .red
+                )
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
             }
         } header: {
             Text("表单选择与链接解析")
@@ -224,38 +259,118 @@ struct CheckinView: View {
         }
     }
 
+    @ViewBuilder
+    private var emptyFormHelperSections: some View {
+        let recents = appState.recentForms
+        if !recents.isEmpty {
+            Section("最近填报（轻点快速加载）") {
+                ForEach(recents) { item in
+                    Button {
+                        formInput = item.formID
+                        loadForm(from: item.formID, editFID: nil, editCatalogs: nil)
+                    } label: {
+                        HStack(spacing: 10) {
+                            IconBadge(
+                                systemImage: item.lastSucceeded ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
+                                tint: item.lastSucceeded ? Color.green : Color.orange,
+                                size: 32
+                            )
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                HStack(spacing: 6) {
+                                    Text("ID \(item.formID)")
+                                        .font(.caption.monospaced())
+                                    Text("·")
+                                    Text(item.lastTime.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button {
+                    showMyFormsSheet = true
+                } label: {
+                    Label("浏览全部「我的接龙」", systemImage: "tray.full")
+                        .font(.subheadline.weight(.medium))
+                }
+            }
+        } else {
+            Section {
+                ContentUnavailableView {
+                    Label("选择要填报的接龙", systemImage: "doc.text.magnifyingglass")
+                } description: {
+                    Text("粘贴分享链接，或从「我的接龙」列表中挑选参与的活动。")
+                } actions: {
+                    Button {
+                        showMyFormsSheet = true
+                    } label: {
+                        Label("浏览我的接龙", systemImage: "tray.full")
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.small)
+                }
+                .listRowBackground(Color.clear)
+            }
+        }
+    }
+
     private func formOverviewSection(_ form: ActInfo) -> some View {
         Section("表单概览") {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
                     Text(form.displayTitle)
                         .font(.headline)
-                    Spacer()
-                    GlassStatusPill(
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 6)
+                    StatusBadge(
                         title: form.statusText,
-                        tint: form.status == 2 ? .green : .orange
+                        tint: form.status == 2 ? Color.green : Color.orange
                     )
                 }
 
-                HStack(spacing: 12) {
-                    Text("表单 ID：\(form.formID)")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                    Text("可见字段：\(form.visibleFields.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                FlowLayout(spacing: 6, lineSpacing: 6) {
+                    StatusBadge(
+                        title: "ID \(form.formID)",
+                        systemImage: "number",
+                        tint: .secondary,
+                        monospaced: true
+                    )
+                    StatusBadge(
+                        title: "\(form.visibleFields.count) 项字段",
+                        systemImage: "list.bullet",
+                        tint: .blue
+                    )
+                    if let active = appState.activeAccount {
+                        StatusBadge(
+                            title: active.nickName.isEmpty ? active.name : "\(active.name)（\(active.nickName)）",
+                            systemImage: "person.fill",
+                            tint: .teal
+                        )
+                    }
                 }
 
-                if let active = appState.activeAccount {
-                    Text("当前提交账号：\(active.name)\(active.nickName.isEmpty ? "" : "（\(active.nickName)）")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Label("尚未登录来宝账号，请先前往「账号」页添加令牌", systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                if appState.activeAccount == nil {
+                    InlineFeedbackBanner(
+                        message: "尚未登录来宝账号，请先前往「账号」页添加令牌。",
+                        systemImage: "exclamationmark.triangle.fill",
+                        tint: .orange
+                    )
                 }
             }
+            .padding(.vertical, 2)
 
             if !form.accessConditions.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -280,17 +395,17 @@ struct CheckinView: View {
     private var editModeBannerSection: some View {
         Section {
             HStack(spacing: 10) {
-                Image(systemName: "pencil.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.orange)
+                IconBadge(systemImage: "pencil.line", tint: .orange, size: 34)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("编辑已有记录模式（PUT /v2/form_data）")
+                    Text("编辑已有记录模式")
                         .font(.subheadline.weight(.semibold))
-                    Text("记录 fid：\(editFID)（自动移除补卡 patch 字段）")
+                    Text("PUT /v2 · fid \(editFID)")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                Spacer()
+                Spacer(minLength: 6)
                 Button("退出编辑") {
                     editFID = ""
                     appState.showToast("已切回新建填报模式")
@@ -298,6 +413,7 @@ struct CheckinView: View {
                 .buttonStyle(.glass)
                 .controlSize(.small)
             }
+            .padding(.vertical, 2)
         }
     }
 
@@ -333,18 +449,30 @@ struct CheckinView: View {
                         get: { patchDateSelection },
                         set: { next in
                             patchDateSelection = next
-                            patchDateText = Self.formatYMD(next)
+                            patchDateText = UIFormatters.ymd.string(from: next)
                         }
                     ),
                     displayedComponents: [.date]
                 )
-                TextField("patchDate（YYYY-MM-DD）", text: $patchDateText)
-                    .font(.body.monospaced())
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                TextField("补卡时段 patchTimeSection（可选）", text: $patchSection)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("patchDate（YYYY-MM-DD）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("YYYY-MM-DD", text: $patchDateText)
+                        .font(.subheadline.monospaced())
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .mobileInputField(verticalPadding: 8)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("补卡时段 patchTimeSection（可选）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("留空按表单默认", text: $patchSection)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .mobileInputField(verticalPadding: 8)
+                }
             }
         }
     }
@@ -368,40 +496,63 @@ struct CheckinView: View {
             return
         }
 
+        loadFormTask?.cancel()
         isLoadingForm = true
         parseError = nil
         submitError = nil
         lastSubmitSummary = nil
 
-        Task {
+        let previousFormID = loadedForm?.formID
+
+        loadFormTask = Task {
             defer { isLoadingForm = false }
             do {
                 let parsed = try await FormLinkParser.resolveFormID(trimmed)
+                guard !Task.isCancelled else { return }
                 parsedLink = parsed
                 let client = try appState.makeAPIClient()
                 let detail = try await client.formDetail(formID: parsed.formID)
+                guard !Task.isCancelled else { return }
+
+                let isSwitchingForm = previousFormID != nil && previousFormID != detail.formID
                 loadedForm = detail
                 fieldValues = [:]
                 editFID = incomingEditFID ?? ""
                 patchEnabled = false
 
-                // Pre-populate default location anchor when a SPECIFIED_LOCATION field exists and user has no coords yet.
+                if isSwitchingForm && (editCatalogs == nil || editCatalogs?.isEmpty == true) {
+                    locationState.anchorIndex = nil
+                }
+
+                // Pre-populate default anchor when switching to a SPECIFIED_LOCATION form
+                // whose geofence does not contain the existing coordinates, or when empty.
                 if let locField = detail.visibleFields.first(where: { $0.normalizedType == "LOCATION" }),
                    let spec = locField.specifiedLocation,
                    spec.locationType == .specified,
-                   let firstAnchor = spec.anchors.first,
-                   locationState.gcj02PreviewPoint == nil {
-                    locationState.latText = String(format: "%.6f", firstAnchor.latitude)
-                    locationState.lngText = String(format: "%.6f", firstAnchor.longitude)
-                    locationState.addr = firstAnchor.address.isEmpty ? firstAnchor.specifiedAddress : firstAnchor.address
-                    locationState.title = firstAnchor.specifiedAddress
-                    locationState.wgs84 = false
+                   let firstAnchor = spec.anchors.first {
+                    let shouldPreFill: Bool = {
+                        guard let currentPoint = locationState.gcj02PreviewPoint else {
+                            return true
+                        }
+                        if isSwitchingForm {
+                            let match = GeoMath.pickNearestAnchor(userPoint: currentPoint, anchors: spec.anchors)
+                            return !(match?.isWithinScope ?? false)
+                        }
+                        return false
+                    }()
+                    if shouldPreFill {
+                        locationState.wgs84 = false
+                        locationState.applyAnchor(firstAnchor)
+                    }
                 }
 
                 if let catalogs = editCatalogs, !catalogs.isEmpty {
                     applyEditCatalogs(catalogs, to: detail)
                 }
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 parseError = error.localizedDescription
             }
         }
@@ -435,7 +586,6 @@ struct CheckinView: View {
                 if let title = dict["title"]?.stringValue {
                     locationState.title = title
                 }
-                // Remove raw override so live MapPicker / locationState edits take effect cleanly.
                 values.removeValue(forKey: item.cid)
             }
         }
@@ -561,13 +711,6 @@ struct CheckinView: View {
         default: return source
         }
     }
-
-    private static func formatYMD(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
 }
 
 // MARK: - Dry-Run Preview Sheet
@@ -591,24 +734,45 @@ private struct DryRunPreviewSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("目标接口") {
-                    Text(preview.isEdit
-                         ? "PUT /v2/\(preview.formID)/form_data（编辑记录）"
-                         : "POST /v1/\(preview.formID)/form_data（新建提交）")
-                        .font(.caption.monospaced())
-                    if let pt = preview.resolvedPoint {
-                        Text("最终提交 GCJ-02 坐标：\(pt.formatted)")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
+                Section("目标接口与坐标") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(preview.formTitle)
+                            .font(.subheadline.weight(.semibold))
+                        HStack(spacing: 8) {
+                            StatusBadge(
+                                title: preview.isEdit ? "PUT" : "POST",
+                                tint: preview.isEdit ? Color.orange : Color.blue,
+                                monospaced: true
+                            )
+                            Text(preview.isEdit
+                                 ? "/v2/\(preview.formID)/form_data"
+                                 : "/v1/\(preview.formID)/form_data")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        if let pt = preview.resolvedPoint {
+                            LabeledContent("最终 GCJ-02") {
+                                Text(pt.formatted)
+                                    .font(.caption.monospaced())
+                                    .textSelection(.enabled)
+                            }
+                            .font(.caption)
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
 
                 if !preview.warnings.isEmpty {
                     Section("构建提示（\(preview.warnings.count)）") {
                         ForEach(preview.warnings, id: \.self) { warning in
-                            Label(warning, systemImage: "exclamationmark.triangle.fill")
-                                .font(.footnote)
-                                .foregroundStyle(.orange)
+                            InlineFeedbackBanner(
+                                message: warning,
+                                systemImage: "exclamationmark.triangle.fill",
+                                tint: .orange
+                            )
+                            .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                         }
                     }
                 }
@@ -618,13 +782,14 @@ private struct DryRunPreviewSheet: View {
                         Text(preview.prettyJSON)
                             .font(.caption.monospaced())
                             .textSelection(.enabled)
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 6)
                     }
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("载荷预览（Dry-Run）")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationDragIndicator(.visible)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
