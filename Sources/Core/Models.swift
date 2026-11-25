@@ -394,6 +394,257 @@ public struct OptionItem: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
+/// Fill interaction mode configured via `config.NAME_LIST_FILL_TYPE.content`.
+public enum NameListFillType: String, Codable, Hashable, Sendable {
+    case inputFill = "INPUT_FILL"
+    case clickChoose = "CLICK_CHOOSE"
+    case radioChoose = "RADIO_CHOOSE"
+
+    /// Whether the form requires picking from the preset roster rather than free typing.
+    public var isChooseOnly: Bool {
+        self == .clickChoose || self == .radioChoose
+    }
+}
+
+/// A single selectable person/item inside a field's preset roster (`config.NAME_LIST`).
+public struct NameListEntry: Codable, Hashable, Sendable, Identifiable {
+    public var id: String {
+        groupID.isEmpty ? "\(index):\(name)" : "\(groupID):\(index):\(name)"
+    }
+    public var name: String
+    public var groupID: String
+    public var groupName: String
+    public var index: Int
+    public var no: String
+    /// `0` = unfilled, `1` = filled, `-1` = deleted.
+    public var status: Int
+    public var fillNum: Int
+
+    public init(
+        name: String,
+        groupID: String = "",
+        groupName: String = "",
+        index: Int = 0,
+        no: String = "",
+        status: Int = 0,
+        fillNum: Int = 0
+    ) {
+        self.name = name
+        self.groupID = groupID
+        self.groupName = groupName
+        self.index = index
+        self.no = no
+        self.status = status
+        self.fillNum = fillNum
+    }
+
+    /// Exact wire string submitted in `CatalogValue.value` (aligned with `nameList.js` `stringifyGroupValue`).
+    public var wireValue: String {
+        groupID.isEmpty ? name : "\(name) \(groupID)"
+    }
+}
+
+/// A named group inside a grouped preset roster (`NAME_LIST_ACTIVE_TYPE == "GROUP"`).
+public struct NameListGroup: Codable, Hashable, Sendable, Identifiable {
+    public var id: String { groupID }
+    public var groupID: String
+    public var groupName: String
+    public var status: Int
+    public var entries: [NameListEntry]
+
+    public init(
+        groupID: String,
+        groupName: String,
+        status: Int = 0,
+        entries: [NameListEntry] = []
+    ) {
+        self.groupID = groupID
+        self.groupName = groupName
+        self.status = status
+        self.entries = entries
+    }
+}
+
+/// Per-field roster bucket returned by `GET /v1/{formID}/name_list/used`.
+public struct UsedNameListBucket: Hashable, Sendable {
+    public var cid: String
+    public var entries: [NameListEntry]
+
+    public init(cid: String, entries: [NameListEntry]) {
+        self.cid = cid
+        self.entries = entries
+    }
+}
+
+/// Parsed preset roster configuration extracted from `FormField.config` and optionally enriched
+/// with live fill status from `GET /v1/{formID}/name_list/used`.
+public struct PresetNameList: Hashable, Sendable {
+    public var isGroupMode: Bool
+    public var fillType: NameListFillType
+    public var showNumber: Bool
+    /// `-1` means unlimited submissions per name; `>= 1` caps per-name submissions.
+    public var nameLimit: Int
+    public var groups: [NameListGroup]
+    public var entries: [NameListEntry]
+
+    public init(
+        isGroupMode: Bool = false,
+        fillType: NameListFillType = .inputFill,
+        showNumber: Bool = false,
+        nameLimit: Int = -1,
+        groups: [NameListGroup] = [],
+        entries: [NameListEntry] = []
+    ) {
+        self.isGroupMode = isGroupMode
+        self.fillType = fillType
+        self.showNumber = showNumber
+        self.nameLimit = nameLimit
+        self.groups = groups
+        self.entries = entries
+    }
+
+    public var allEntries: [NameListEntry] {
+        isGroupMode ? groups.flatMap(\.entries) : entries
+    }
+
+    public var totalCount: Int {
+        allEntries.count
+    }
+
+    public var filledCount: Int {
+        allEntries.filter { $0.fillNum > 0 || $0.status == 1 }.count
+    }
+
+    public func isEntryAtLimit(_ entry: NameListEntry) -> Bool {
+        guard nameLimit > 0 else { return false }
+        return entry.fillNum >= nameLimit || entry.status == 1
+    }
+
+    /// Splits a stored wire string (`"<name> <groupId>"` in group mode, `"<name>"` in flat mode).
+    public static func parseWireValue(_ raw: String, isGroupMode: Bool) -> (name: String, groupID: String) {
+        guard isGroupMode else {
+            return (name: raw, groupID: "")
+        }
+        if let lastSpace = raw.lastIndex(of: " ") {
+            let namePart = String(raw[..<lastSpace])
+            let groupPart = String(raw[raw.index(after: lastSpace)...])
+            if !groupPart.isEmpty {
+                return (name: namePart, groupID: groupPart)
+            }
+        }
+        return (name: raw, groupID: "")
+    }
+
+    /// Merges live `status`/`fillNum` entries fetched from `GET /v1/{formID}/name_list/used`
+    /// while preserving static group names and original sequence numbers.
+    public func mergingUsedEntries(_ remoteEntries: [NameListEntry]) -> PresetNameList {
+        let validRemote = remoteEntries.filter { $0.status != -1 && !$0.name.isEmpty }
+        guard !validRemote.isEmpty else { return self }
+
+        var next = self
+        let remoteHasGroupIDs = validRemote.contains { !$0.groupID.isEmpty }
+        let treatAsGroup = isGroupMode || remoteHasGroupIDs
+
+        if treatAsGroup {
+            next.isGroupMode = true
+            var numberLookup: [String: String] = [:]
+            for group in groups {
+                for entry in group.entries {
+                    numberLookup["\(entry.name) \(group.groupID)"] = entry.no
+                }
+            }
+
+            var groupedRemote: [String: [NameListEntry]] = [:]
+            var remoteGroupOrder: [String] = []
+            for entry in validRemote {
+                let gid = entry.groupID
+                if groupedRemote[gid] == nil {
+                    remoteGroupOrder.append(gid)
+                }
+                groupedRemote[gid, default: []].append(entry)
+            }
+
+            if !groups.isEmpty {
+                var mergedGroups: [NameListGroup] = []
+                for group in groups where group.status != -1 {
+                    if let remoteForGroup = groupedRemote[group.groupID], !remoteForGroup.isEmpty {
+                        let mapped: [NameListEntry] = remoteForGroup.enumerated().map { idx, item in
+                            let key = "\(item.name) \(group.groupID)"
+                            let resolvedNo = !item.no.isEmpty
+                                ? item.no
+                                : (numberLookup[key] ?? "\(idx + 1)")
+                            return NameListEntry(
+                                name: item.name,
+                                groupID: group.groupID,
+                                groupName: group.groupName,
+                                index: idx,
+                                no: resolvedNo,
+                                status: item.status,
+                                fillNum: item.fillNum
+                            )
+                        }
+                        mergedGroups.append(NameListGroup(
+                            groupID: group.groupID,
+                            groupName: group.groupName,
+                            status: group.status,
+                            entries: mapped
+                        ))
+                    } else {
+                        mergedGroups.append(group)
+                    }
+                }
+                next.groups = mergedGroups
+            } else {
+                next.groups = remoteGroupOrder.map { gid in
+                    let items = groupedRemote[gid] ?? []
+                    let fallbackGroupName = items.first(where: { !$0.groupName.isEmpty })?.groupName
+                        ?? (gid.isEmpty ? "默认分组" : "分组 \(gid)")
+                    let mapped: [NameListEntry] = items.enumerated().map { idx, item in
+                        NameListEntry(
+                            name: item.name,
+                            groupID: gid,
+                            groupName: fallbackGroupName,
+                            index: idx,
+                            no: item.no.isEmpty ? "\(idx + 1)" : item.no,
+                            status: item.status,
+                            fillNum: item.fillNum
+                        )
+                    }
+                    return NameListGroup(
+                        groupID: gid,
+                        groupName: fallbackGroupName,
+                        status: 0,
+                        entries: mapped
+                    )
+                }
+            }
+            next.entries = []
+        } else {
+            var numberLookup: [String: String] = [:]
+            for entry in entries {
+                numberLookup[entry.name] = entry.no
+            }
+            next.entries = validRemote.enumerated().map { idx, item in
+                let resolvedNo = !item.no.isEmpty
+                    ? item.no
+                    : (numberLookup[item.name] ?? "\(idx + 1)")
+                return NameListEntry(
+                    name: item.name,
+                    groupID: "",
+                    groupName: "",
+                    index: idx,
+                    no: resolvedNo,
+                    status: item.status,
+                    fillNum: item.fillNum
+                )
+            }
+            next.groups = []
+        }
+
+        return next
+    }
+}
+
 /// A single question/field (`catalog`) inside a form.
 public struct FormField: Codable, Hashable, Sendable, Identifiable {
     public var id: String { cid.isEmpty ? uuid : cid }
@@ -488,6 +739,129 @@ public struct FormField: Codable, Hashable, Sendable, Identifiable {
     /// Parsed `SPECIFIED_LOCATION` constraint if present in `config`.
     public var specifiedLocation: SpecifiedLocation? {
         GeoMath.extractSpecifiedLocation(from: config)
+    }
+
+    /// Whether this field has an enabled preset roster (`config.NAME_LIST.active == true`).
+    public var hasPresetNameList: Bool {
+        config["NAME_LIST"]?["active"]?.boolValue == true
+    }
+
+    /// Parses the static preset roster and interaction settings from `config.NAME_LIST*`.
+    /// Returns `nil` when `config.NAME_LIST.active` is not enabled.
+    public var presetNameList: PresetNameList? {
+        guard let nameListObj = config["NAME_LIST"]?.objectValue,
+              nameListObj["active"]?.boolValue == true else {
+            return nil
+        }
+
+        let activeTypeRaw = config["NAME_LIST_ACTIVE_TYPE"]?["content"]?.stringValue?.uppercased() ?? "ONLY_NAME_LIST"
+        let isGroupMode = activeTypeRaw == "GROUP"
+
+        let fillTypeRaw = config["NAME_LIST_FILL_TYPE"]?["content"]?.stringValue?.uppercased() ?? "INPUT_FILL"
+        let fillType = NameListFillType(rawValue: fillTypeRaw) ?? .inputFill
+
+        let showNumber = config["NAME_LIST_NUMBER"]?["active"]?.boolValue == true
+        let contentDict = nameListObj["content"]?.objectValue ?? [:]
+
+        let nameLimit: Int
+        if let explicitLimit = contentDict["nameLimit"]?.intValue {
+            nameLimit = explicitLimit
+        } else if config["NOT_ALLOW_REPEAT"]?["active"]?.boolValue == true {
+            nameLimit = 1
+        } else {
+            nameLimit = -1
+        }
+
+        func parseEntry(_ raw: JSONValue, index: Int, seq: Int, groupID: String, groupName: String) -> NameListEntry? {
+            if let str = raw.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty {
+                return NameListEntry(
+                    name: str,
+                    groupID: groupID,
+                    groupName: groupName,
+                    index: index,
+                    no: "\(seq)",
+                    status: 0,
+                    fillNum: 0
+                )
+            }
+            guard let dict = raw.objectValue else { return nil }
+            let status = dict["status"]?.intValue ?? 0
+            guard status != -1 else { return nil }
+            guard let name = (dict["name"]?.coercedStringValue ?? dict["value"]?.coercedStringValue)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !name.isEmpty else {
+                return nil
+            }
+            let fillNum = dict["fillNum"]?.intValue ?? 0
+            let no = dict["no"]?.coercedStringValue ?? "\(seq)"
+            return NameListEntry(
+                name: name,
+                groupID: groupID,
+                groupName: groupName,
+                index: index,
+                no: no.isEmpty ? "\(seq)" : no,
+                status: status,
+                fillNum: fillNum
+            )
+        }
+
+        if isGroupMode {
+            var parsedGroups: [NameListGroup] = []
+            if let rawGroups = contentDict["groups"]?.arrayValue {
+                for rawGroup in rawGroups {
+                    guard let gDict = rawGroup.objectValue else { continue }
+                    let gStatus = gDict["status"]?.intValue ?? 0
+                    guard gStatus != -1 else { continue }
+                    let gid = gDict["groupId"]?.coercedStringValue ?? gDict["groupID"]?.coercedStringValue ?? ""
+                    let gName = gDict["groupName"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        ?? (gid.isEmpty ? "默认分组" : "分组 \(gid)")
+                    let rawValues = gDict["value"]?.arrayValue ?? []
+                    var seq = 1
+                    var entries: [NameListEntry] = []
+                    for (idx, elem) in rawValues.enumerated() {
+                        if let entry = parseEntry(elem, index: idx, seq: seq, groupID: gid, groupName: gName) {
+                            entries.append(entry)
+                            seq += 1
+                        }
+                    }
+                    if !entries.isEmpty || !gid.isEmpty {
+                        parsedGroups.append(NameListGroup(
+                            groupID: gid,
+                            groupName: gName,
+                            status: gStatus,
+                            entries: entries
+                        ))
+                    }
+                }
+            }
+            return PresetNameList(
+                isGroupMode: true,
+                fillType: fillType,
+                showNumber: showNumber,
+                nameLimit: nameLimit,
+                groups: parsedGroups,
+                entries: []
+            )
+        } else {
+            var entries: [NameListEntry] = []
+            if let rawValues = contentDict["value"]?.arrayValue {
+                var seq = 1
+                for (idx, elem) in rawValues.enumerated() {
+                    if let entry = parseEntry(elem, index: idx, seq: seq, groupID: "", groupName: "") {
+                        entries.append(entry)
+                        seq += 1
+                    }
+                }
+            }
+            return PresetNameList(
+                isGroupMode: false,
+                fillType: fillType,
+                showNumber: showNumber,
+                nameLimit: nameLimit,
+                groups: [],
+                entries: entries
+            )
+        }
     }
 
     static func extractContentText(_ value: JSONValue?) -> String? {

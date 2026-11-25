@@ -216,4 +216,104 @@ final class PayloadBuilderTests: XCTestCase {
         let built = try PayloadBuilder.build(form: form, draft: draft)
         XCTAssertTrue(built.warnings.contains(where: { $0.contains("总部大楼") && $0.contains("允许范围") }))
     }
+
+    func testPresetNameListParsingGroupMergingAndChooseOnlyValidation() throws {
+        let flatField = FormField(
+            cid: "c_name",
+            type: "WORD",
+            status: 1,
+            must: true,
+            content: .string("姓名"),
+            config: [
+                "NAME_LIST": .object([
+                    "active": .bool(true),
+                    "content": .object([
+                        "nameLimit": .int(1),
+                        "value": .array([
+                            .object(["name": .string("张三"), "status": .int(0)]),
+                            .object(["name": .string("已删"), "status": .int(-1)]),
+                            .object(["name": .string("李四"), "status": .int(0)])
+                        ])
+                    ])
+                ]),
+                "NAME_LIST_FILL_TYPE": .object(["active": .bool(true), "content": .string("RADIO_CHOOSE")]),
+                "NAME_LIST_NUMBER": .object(["active": .bool(true)])
+            ]
+        )
+
+        XCTAssertTrue(flatField.hasPresetNameList)
+        let flatList = try XCTUnwrap(flatField.presetNameList)
+        XCTAssertFalse(flatList.isGroupMode)
+        XCTAssertEqual(flatList.fillType, .radioChoose)
+        XCTAssertTrue(flatList.showNumber)
+        XCTAssertEqual(flatList.nameLimit, 1)
+        XCTAssertEqual(flatList.entries.map(\.name), ["张三", "李四"])
+        XCTAssertEqual(flatList.entries.map(\.no), ["1", "2"])
+
+        let mergedFlat = flatList.mergingUsedEntries([
+            NameListEntry(name: "张三", status: 1, fillNum: 1),
+            NameListEntry(name: "李四", status: 0, fillNum: 0)
+        ])
+        XCTAssertEqual(mergedFlat.filledCount, 1)
+        XCTAssertTrue(mergedFlat.isEntryAtLimit(mergedFlat.entries[0]))
+        XCTAssertFalse(mergedFlat.isEntryAtLimit(mergedFlat.entries[1]))
+        XCTAssertEqual(mergedFlat.entries[0].no, "1")
+
+        // Required RADIO_CHOOSE field must not auto-fill "签到".
+        let form = ActInfo(formID: "f-roster", status: 2, catalogs: [flatField])
+        XCTAssertThrowsError(try PayloadBuilder.build(form: form, draft: CheckinDraft(formID: "f-roster")))
+
+        // Submitting a selected entry passes cleanly.
+        let built = try PayloadBuilder.build(
+            form: form,
+            draft: CheckinDraft(formID: "f-roster", fieldValues: ["c_name": .string("李四")])
+        )
+        XCTAssertEqual(built.payload.catalogs.first?.value, .string("李四"))
+
+        // Grouped preset roster round-trip ("王五 2").
+        let groupField = FormField(
+            cid: "c_grp",
+            type: "WORD",
+            status: 1,
+            must: true,
+            content: .string("班级姓名"),
+            config: [
+                "NAME_LIST": .object([
+                    "active": .bool(true),
+                    "content": .object([
+                        "groups": .array([
+                            .object([
+                                "groupId": .string("1"),
+                                "groupName": .string("一班"),
+                                "status": .int(0),
+                                "value": .array([.object(["name": .string("张三"), "status": .int(0)])])
+                            ]),
+                            .object([
+                                "groupId": .string("2"),
+                                "groupName": .string("二班"),
+                                "status": .int(0),
+                                "value": .array([.object(["name": .string("王五"), "status": .int(0)])])
+                            ])
+                        ])
+                    ])
+                ]),
+                "NAME_LIST_ACTIVE_TYPE": .object(["active": .bool(true), "content": .string("GROUP")])
+            ]
+        )
+        let groupList = try XCTUnwrap(groupField.presetNameList)
+        XCTAssertTrue(groupList.isGroupMode)
+        XCTAssertEqual(groupList.groups.count, 2)
+        XCTAssertEqual(groupList.groups[1].entries.first?.wireValue, "王五 2")
+        let parsedWire = PresetNameList.parseWireValue("王五 2", isGroupMode: true)
+        XCTAssertEqual(parsedWire.name, "王五")
+        XCTAssertEqual(parsedWire.groupID, "2")
+
+        let mergedGroup = groupList.mergingUsedEntries([
+            NameListEntry(name: "张三", groupID: "1", status: 1, fillNum: 1),
+            NameListEntry(name: "王五", groupID: "2", status: 0, fillNum: 0)
+        ])
+        XCTAssertEqual(mergedGroup.groups[0].groupName, "一班")
+        XCTAssertEqual(mergedGroup.groups[0].entries.first?.fillNum, 1)
+        XCTAssertEqual(mergedGroup.groups[1].entries.first?.status, 0)
+    }
 }

@@ -791,7 +791,96 @@ public actor LaiBaoAPIClient {
         }
     }
 
+    /// `GET /v1/{formID}/name_list/used` — fetches live preset roster items and submission counts
+    /// for fields with `config.NAME_LIST.active == true`. Treats code `13362` as empty `[]`.
+    public func usedNameLists(
+        formID: String,
+        date: String = "",
+        timeSection: String = ""
+    ) async throws -> [UsedNameListBucket] {
+        let escaped = try Self.validatePathID(formID)
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "date", value: date)
+        ]
+        let cleanSection = timeSection.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanSection.isEmpty {
+            queryItems.append(URLQueryItem(name: "timeSection", value: cleanSection))
+        }
+        do {
+            let raw = try await performRequest(
+                method: "GET",
+                path: "/v1/\(escaped)/name_list/used",
+                queryItems: queryItems,
+                options: RequestOptions(clientFormID: formID)
+            )
+            return Self.parseUsedNameLists(from: raw)
+        } catch {
+            if Self.isNoRecordsError(error) {
+                return []
+            }
+            throw error
+        }
+    }
+
     // MARK: - Internal Response Parsers (Exposed for Unit Tests)
+
+    static func parseUsedNameLists(from raw: JSONValue?) -> [UsedNameListBucket] {
+        guard let raw, !raw.isNull else { return [] }
+        let itemsArray: [JSONValue]
+        if let arr = raw.arrayValue {
+            itemsArray = arr
+        } else if let arr = raw["list"]?.arrayValue {
+            itemsArray = arr
+        } else if let arr = raw["data"]?.arrayValue {
+            itemsArray = arr
+        } else {
+            return []
+        }
+
+        var buckets: [UsedNameListBucket] = []
+        for elem in itemsArray {
+            guard let dict = elem.objectValue else { continue }
+            let cid = dict["cid"]?.coercedStringValue ?? ""
+            guard !cid.isEmpty else { continue }
+            let rawList = dict["nameList"]?.arrayValue ?? []
+            var entries: [NameListEntry] = []
+            for (idx, rawItem) in rawList.enumerated() {
+                if let str = rawItem.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty {
+                    entries.append(NameListEntry(
+                        name: str,
+                        index: idx,
+                        no: "\(idx + 1)",
+                        status: 0,
+                        fillNum: 0
+                    ))
+                    continue
+                }
+                guard let itemDict = rawItem.objectValue else { continue }
+                let status = itemDict["status"]?.intValue ?? 0
+                guard status != -1 else { continue }
+                guard let name = (itemDict["name"]?.coercedStringValue ?? itemDict["value"]?.coercedStringValue)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !name.isEmpty else {
+                    continue
+                }
+                let groupID = itemDict["groupId"]?.coercedStringValue ?? itemDict["groupID"]?.coercedStringValue ?? ""
+                let groupName = itemDict["groupName"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let fillNum = itemDict["fillNum"]?.intValue ?? 0
+                let no = itemDict["no"]?.coercedStringValue ?? ""
+                entries.append(NameListEntry(
+                    name: name,
+                    groupID: groupID,
+                    groupName: groupName,
+                    index: idx,
+                    no: no,
+                    status: status,
+                    fillNum: fillNum
+                ))
+            }
+            buckets.append(UsedNameListBucket(cid: cid, entries: entries))
+        }
+        return buckets
+    }
 
     static func parseSubmitResult(raw: JSONValue?, fallbackFID: String) throws -> SubmitResult {
         guard let raw, !raw.isNull else {

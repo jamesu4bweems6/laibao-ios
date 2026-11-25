@@ -415,6 +415,9 @@ public enum PayloadBuilder {
 
         case "WORD":
             guard field.must else { return (nil, nil) }
+            if let preset = field.presetNameList, preset.fillType.isChooseOnly {
+                return (nil, nil)
+            }
             let trimmedDefault = draft.defaultText.trimmingCharacters(in: .whitespacesAndNewlines)
             let text = trimmedDefault.isEmpty ? "签到" : draft.defaultText
             return (CatalogValue(cid: field.cid, type: field.type, value: .string(text)), nil)
@@ -456,6 +459,9 @@ public enum PayloadBuilder {
     }
 
     private static func requiredFieldError(for field: FormField) -> PayloadBuildError {
+        if field.hasPresetNameList {
+            return .missingRequiredField(cid: field.cid, title: field.title, type: field.type, hint: "请从预设名单中选择一项")
+        }
         let hint: String
         switch field.normalizedType {
         case "AREA":

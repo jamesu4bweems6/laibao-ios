@@ -18,6 +18,9 @@ struct CheckinView: View {
     @State private var fieldValues: [String: JSONValue] = [:]
     @State private var locationState = LocationFieldState()
     @State private var defaultText: String = ""
+    @State private var presetNameLists: [String: PresetNameList] = [:]
+    @State private var isLoadingNameLists: Bool = false
+    @State private var nameListLoadTask: Task<Void, Never>?
 
     // Edit Mode (`PUT /v2/{id}/form_data`)
     @State private var editFID: String = ""
@@ -163,9 +166,20 @@ struct CheckinView: View {
             }
             .onDisappear {
                 loadFormTask?.cancel()
+                nameListLoadTask?.cancel()
             }
             .onChange(of: appState.pendingCheckinRequestToken) { _, _ in
                 consumeHandoffIfNeeded()
+            }
+            .onChange(of: patchEnabled) { _, _ in
+                if let form = loadedForm, form.visibleFields.contains(where: \.hasPresetNameList) {
+                    refreshPresetNameLists(for: form)
+                }
+            }
+            .onChange(of: patchDateText) { _, _ in
+                if patchEnabled, let form = loadedForm, form.visibleFields.contains(where: \.hasPresetNameList) {
+                    refreshPresetNameLists(for: form)
+                }
             }
         }
     }
@@ -427,6 +441,11 @@ struct CheckinView: View {
                         fieldValues: $fieldValues,
                         locationState: $locationState,
                         savedPOIs: appState.pois,
+                        presetNameList: presetNameLists[field.cid] ?? field.presetNameList,
+                        isLoadingNameList: isLoadingNameLists && field.hasPresetNameList,
+                        onRefreshNameList: {
+                            refreshPresetNameLists(for: form)
+                        },
                         onOpenMapPicker: { target in
                             mapPickerField = target
                         }
@@ -511,11 +530,21 @@ struct CheckinView: View {
                 let detail = try await client.formDetail(formID: parsed.formID)
                 guard !Task.isCancelled else { return }
 
+                nameListLoadTask?.cancel()
                 let isSwitchingForm = previousFormID != nil && previousFormID != detail.formID
                 loadedForm = detail
                 fieldValues = [:]
                 editFID = incomingEditFID ?? ""
                 patchEnabled = false
+
+                // Seed static preset rosters immediately from form schema, then enrich via /name_list/used.
+                var initialRosters: [String: PresetNameList] = [:]
+                for field in detail.visibleFields {
+                    if let roster = field.presetNameList {
+                        initialRosters[field.cid] = roster
+                    }
+                }
+                presetNameLists = initialRosters
 
                 if isSwitchingForm && (editCatalogs == nil || editCatalogs?.isEmpty == true) {
                     locationState.anchorIndex = nil
@@ -546,11 +575,62 @@ struct CheckinView: View {
                 if let catalogs = editCatalogs, !catalogs.isEmpty {
                     applyEditCatalogs(catalogs, to: detail)
                 }
+
+                if !initialRosters.isEmpty {
+                    refreshPresetNameLists(for: detail)
+                }
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
                 parseError = error.localizedDescription
+            }
+        }
+    }
+
+    private func refreshPresetNameLists(for form: ActInfo) {
+        let rosterFields = form.visibleFields.filter(\.hasPresetNameList)
+        guard !rosterFields.isEmpty else { return }
+
+        nameListLoadTask?.cancel()
+        isLoadingNameLists = true
+
+        let targetFormID = form.formID
+        let targetDate = (editFID.isEmpty && patchEnabled)
+            ? patchDateText.trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+        let targetSection = (editFID.isEmpty && patchEnabled)
+            ? patchSection.trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+
+        nameListLoadTask = Task {
+            defer { isLoadingNameLists = false }
+            do {
+                let client = try appState.makeAPIClient()
+                let buckets = try await client.usedNameLists(
+                    formID: targetFormID,
+                    date: targetDate,
+                    timeSection: targetSection
+                )
+                guard !Task.isCancelled, loadedForm?.formID == targetFormID else { return }
+
+                var merged = presetNameLists
+                for field in rosterFields where merged[field.cid] == nil {
+                    if let staticRoster = field.presetNameList {
+                        merged[field.cid] = staticRoster
+                    }
+                }
+                for bucket in buckets {
+                    if let base = merged[bucket.cid] ?? rosterFields.first(where: { $0.cid == bucket.cid })?.presetNameList {
+                        merged[bucket.cid] = base.mergingUsedEntries(bucket.entries)
+                    }
+                }
+                presetNameLists = merged
+            } catch is CancellationError {
+                return
+            } catch {
+                // Keep static inline preset rosters intact if live fill-status sync fails.
+                return
             }
         }
     }

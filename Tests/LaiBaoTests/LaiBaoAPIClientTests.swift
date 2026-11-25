@@ -470,4 +470,52 @@ final class LaiBaoAPIClientTests: XCTestCase {
         XCTAssertThrowsError(try LaiBaoAPIClient.validatePathID("a/b"))
         XCTAssertNoThrow(try LaiBaoAPIClient.validatePathID("65f123abc_01-ok"))
     }
+
+    func testUsedNameListsEndpointAndCode13362Empty() async throws {
+        APIClientMockURLProtocol.configure { request, _ in
+            let url = request.url!
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Client-Form-Id"), url.path.contains("empty") ? "empty" : "f_roster")
+
+            if url.path == "/v1/f_roster/name_list/used" {
+                let dateVal = comps?.queryItems?.first(where: { $0.name == "date" })?.value
+                let secVal = comps?.queryItems?.first(where: { $0.name == "timeSection" })?.value
+                XCTAssertEqual(dateVal, "2026-11-25")
+                XCTAssertEqual(secVal, "morning")
+                let body = """
+                {
+                  "code": 0,
+                  "data": [
+                    {
+                      "cid": "c_name",
+                      "nameList": [
+                        {"name": "张三", "groupId": "1", "status": 1, "fillNum": 1},
+                        {"name": "李四", "groupId": "1", "status": 0, "fillNum": 0},
+                        {"name": "已删", "groupId": "1", "status": -1, "fillNum": 0}
+                      ]
+                    }
+                  ]
+                }
+                """
+                return Self.jsonResponse(url: url, body: body)
+            }
+
+            if url.path == "/v1/empty/name_list/used" {
+                return Self.jsonResponse(url: url, body: #"{"code": 13362, "message": "暂无提交记录", "data": null}"#)
+            }
+
+            return Self.jsonResponse(url: url, status: 404, body: #"{"code": 404, "message": "not found"}"#)
+        }
+
+        let client = makeMockClient()
+        let buckets = try await client.usedNameLists(formID: "f_roster", date: "2026-11-25", timeSection: "morning")
+        XCTAssertEqual(buckets.count, 1)
+        XCTAssertEqual(buckets[0].cid, "c_name")
+        XCTAssertEqual(buckets[0].entries.map(\.name), ["张三", "李四"])
+        XCTAssertEqual(buckets[0].entries[0].fillNum, 1)
+        XCTAssertEqual(buckets[0].entries[0].groupID, "1")
+
+        let emptyBuckets = try await client.usedNameLists(formID: "empty")
+        XCTAssertTrue(emptyBuckets.isEmpty)
+    }
 }
